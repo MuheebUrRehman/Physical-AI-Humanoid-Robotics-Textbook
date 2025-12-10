@@ -1,0 +1,117 @@
+---
+title: Glossary
+---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Glossary
+
+This page contains definitions for key terms used throughout the book.
+
+<Tabs>
+<TabItem value="a-d" label="A-D" default>
+
+### Action (ROS 2)
+A communication pattern for long-running, asynchronous tasks that provides feedback and can be canceled. It consists of an Action Client and an Action Server.
+
+### Action Planning
+In robotics, the process of generating a sequence of low-level robot actions (e.g., "move arm," "close gripper") to achieve a desired high-level goal, often informed by an LLM.
+
+### Digital Twin
+A virtual, dynamic representation of a physical object or system. In robotics, it serves as a simulation sandbox for development, testing, and validation before deploying to hardware.
+
+### Dynamics
+The study of motion in relation to the physical forces that cause it, such as inertia, gravity, and friction. It helps determine the torques and forces required for a robot to perform a movement.
+
+</TabItem>
+<TabItem value="e-k" label="E-K">
+
+### Embodied Intelligence
+A theory in AI and robotics stating that an agent's intelligence is fundamentally shaped by the interaction between its physical body (morphology, sensors, actuators) and its environment.
+
+### End-Effector
+The device at the end of a robotic arm, such as a gripper, tool, or hand, which interacts with the environment.
+
+### Forward Kinematics (FK)
+The process of calculating the position and orientation of a robot's end-effector based on the known angles of its joints.
+
+### Gazebo
+A powerful, open-source 3D robotics simulator that provides a realistic physics engine and sensor models. It is deeply integrated with the ROS ecosystem.
+
+### Inverse Kinematics (IK)
+The process of calculating the required joint angles for a robot's end-effector to reach a desired position and orientation in space. This is often more complex than Forward Kinematics.
+
+### Isaac ROS
+A collection of hardware-accelerated ROS 2 packages developed by NVIDIA that leverage GPUs to deliver significant performance improvements for common robotics tasks, particularly in perception and AI.
+
+### Isaac Sim
+A powerful, extensible robotics simulation application by NVIDIA, built on Omniverse, designed for developing, testing, and managing AI-based robots with photorealistic environments and high-fidelity physics.
+
+### Kinematics
+The study of motion without considering the forces or masses involved. It deals with the geometric relationships of the robot's structure, such as position, velocity, and acceleration.
+
+</TabItem>
+<TabItem value="l-r" label="L-R">
+
+### Large Language Model (LLM)
+A type of artificial intelligence model trained on vast amounts of text data, capable of understanding, generating, and reasoning with human language. Used in robotics for high-level planning and understanding natural language commands.
+
+### Middleware
+Software that provides services and communication for applications beyond what the operating system offers. ROS 2 is a form of middleware for robotics.
+
+### Navigation2 (Nav2)
+The standard ROS 2 framework for mobile robot navigation, providing a modular stack of algorithms for global and local path planning, control, and recovery behaviors.
+
+### Node (ROS 2)
+A single, independent, executable program within a ROS 2 system that performs a specific task (e.g., controlling a motor, processing camera data). Nodes communicate with each other over the ROS 2 graph.
+
+### Physics Engine
+A software component in a simulator that computes the effects of physical laws (gravity, collision, friction) on objects in the virtual world.
+
+### Plugin (Gazebo)
+A shared library that can be attached to a simulated world, model, or sensor to extend its functionality, such as providing a ROS 2 interface.
+
+### Publisher (ROS 2)
+A node that sends (publishes) messages on a specific **Topic**.
+
+</TabItem>
+<TabItem value="r-z" label="R-Z">
+
+### rclpy
+The official Python client library for programming in ROS 2.
+
+### Robot Operating System (ROS)
+A flexible framework and ecosystem of tools, libraries, and conventions for building and running robot software. It simplifies the task of creating complex and robust robot behavior across a wide variety of robotic platforms.
+
+### SDF (Simulation Description Format)
+An XML-based format used by Gazebo and other simulators to describe every aspect of a simulation, including robots, environments, lighting, and physics. It is a superset of URDF.
+
+### Service (ROS 2)
+A synchronous, request/response communication pattern between two nodes. A client sends a request and waits for a response from a server.
+
+### Speech-to-Text (STT)
+Technology that converts spoken language into written text, a critical component of Voice-to-Action (VLA) systems.
+
+### Subscriber (ROS 2)
+A node that receives (subscribes to) messages from a specific **Topic**.
+
+### Synthetic Data
+Artificially generated data used to train and test machine learning models. Simulators like Unity and Isaac Sim are often used to generate large, labeled datasets for perception tasks.
+
+### Topic (ROS 2)
+A named bus for messages. Nodes can publish messages to a topic or subscribe to a topic to receive messages. It is an asynchronous, many-to-many communication pattern ideal for continuous data streams.
+
+### Unity
+A professional, cross-platform game engine known for its high-fidelity graphics and intuitive editor. It is increasingly used in robotics for creating photorealistic digital twins and generating synthetic data.
+
+### Vision-Language-Action (VLA) Systems
+Robotics systems that integrate visual perception, natural language understanding (often via LLMs), and robot action capabilities to allow users to interact with robots using high-level language commands.
+
+### Visual Grounding
+The process of linking abstract linguistic concepts (e.g., "the red cup") to concrete entities or features in a robot's visual perception of the environment.
+
+### Visual SLAM (VSLAM)
+A method of Simultaneous Localization and Mapping (SLAM) that uses visual sensor data (e.g., cameras) to concurrently build a map of an unknown environment and localize the robot within that map.
+
+</TabItem>
+</Tabs>

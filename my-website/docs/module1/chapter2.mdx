@@ -1,0 +1,104 @@
+---
+title: 'Chapter 2: ROS 2, The Robotic Nervous System'
+sidebar_position: 2
+---
+
+import CodeBlock from '@theme/CodeBlock';
+import HeartbeatPublisherSource from '!!raw-loader!@site/code/ros2_ws/src/humanoid_control_pkg/scripts/heartbeat_publisher.py';
+
+# Chapter 2: ROS 2, The Robotic Nervous System
+
+In the last chapter, we outlined the robotics stack, a layered architecture that manages complexity from high-level cognition to low-level hardware. But how do these disparate layers—written by different teams, in different programming languages, and running on different computers—communicate with each other? The answer is the **Robot Operating System (ROS)**.
+
+ROS is not a traditional operating system like Windows or Linux. It is a **middleware** or **meta-operating system**. It provides a standardized communication infrastructure, a rich ecosystem of tools, and a vast library of community-contributed packages that accelerate robotics development. In this chapter, we will focus on **ROS 2**, the modern, production-grade version of ROS, and explore its fundamental communication patterns.
+
+## 2.1 The ROS 2 Graph: A Network of Nodes
+
+The fundamental organizing principle of a ROS 2 system is the **graph**. The graph is a network of independent programs, called **nodes**, that communicate with each other. Each node is responsible for a single, specific task.
+
+For example, in our humanoid robot, we might have:
+-   A `camera_driver` node that publishes raw image data.
+-   An `object_detector` node that subscribes to images and publishes the locations of detected objects.
+-   A `motion_planner` node that subscribes to object locations and publishes motor commands.
+-   A `motor_controller` node that subscribes to motor commands and executes them on the hardware.
+
+This modular, decoupled architecture is the superpower of ROS. It allows for reusability, fault tolerance, and parallel development. If you want to improve object detection, you can work on the `object_detector` node in isolation without affecting the camera driver or the motion planner.
+
+*(Diagram Placeholder: A graph diagram showing four nodes (Camera, Detector, Planner, Controller) and the communication topics connecting them.)*
+
+```text
++----------------+      /image_raw      +------------------+      /detected_objects      +-----------------+      /motor_commands      +--------------------+
+|                |--------------------->|                  |--------------------------->|                 |------------------------->|                    |
+| Camera Driver  |      (Topic)         | Object Detector  |         (Topic)            | Motion Planner  |         (Topic)          | Motor Controller   |
+|      Node      |                      |       Node       |                            |      Node       |                          |        Node        |
++----------------+                      +------------------+                            +-----------------+                          +--------------------+
+```
+
+## 2.2 Core Communication Patterns
+
+ROS 2 provides several communication patterns for nodes to exchange data. Understanding these patterns is key to building any robotics application.
+
+### Topics: The Asynchronous Broadcast System
+
+**Topics** are the most common communication pattern. They are named buses over which nodes broadcast messages. A node that sends messages on a topic is called a **publisher**, and a node that receives messages is called a **subscriber**.
+
+-   **Analogy:** A topic is like a radio station. The publisher is the DJ broadcasting a song, and the subscribers are the listeners tuned into that station.
+-   **Characteristics:**
+    -   **Asynchronous:** The publisher doesn't know or care if anyone is listening. It just sends the data.
+    -   **Many-to-Many:** There can be multiple publishers and multiple subscribers on the same topic.
+    -   **Use Case:** Ideal for continuous streams of data, such as camera images, laser scans, and robot joint states.
+
+### Services: The Synchronous Request/Response Model
+
+**Services** provide a synchronous, two-way communication channel. A node offering a service is called a **service server**, and a node that uses the service is called a **service client**.
+
+-   **Analogy:** A service is like making a phone call. The client "calls" the server and waits for a response.
+-   **Characteristics:**
+    -   **Synchronous:** The client sends a request and blocks (waits) until the server sends back a response.
+    -   **One-to-One:** A service call is a direct interaction between one client and one server.
+    -   **Use Case:** Ideal for short, discrete tasks that have a clear beginning and end, like "compute the inverse kinematics for this target pose" or "save the current map to a file."
+
+### Actions: The Asynchronous, Goal-Oriented Model
+
+**Actions** are designed for long-running, asynchronous tasks that provide feedback and can be preempted (canceled). An **action server** provides the capability, and an **action client** sends goals to it.
+
+-   **Analogy:** An action is like ordering a pizza. You send the order (goal), you can call to check the status (feedback), and you can cancel the order if you change your mind (preemption). The pizza eventually arrives (result).
+-   **Characteristics:**
+    -   **Asynchronous & Non-Blocking:** The client sends a goal and can continue with other tasks while the action is executing.
+    -   **Provides Feedback:** The server can publish periodic updates on the goal's progress.
+    -   **Preemptible:** The client can request to cancel the goal before it completes.
+    -   **Use Case:** Perfect for navigation ("go to the kitchen"), manipulation ("pick up the red block"), or any task that takes a significant amount of time.
+
+## 2.3 `rclpy`: Writing ROS 2 Nodes in Python
+
+While ROS 2 supports multiple languages, we will be using the Python client library, `rclpy`. `rclpy` allows us to easily create nodes, publishers, subscribers, services, and actions.
+
+Here is a complete, runnable example of a simple `rclpy` publisher node. This node, named `heartbeat_publisher`, will publish a message on the `/heartbeat` topic every second. You can find this file in `code/ros2_ws/src/humanoid_control_pkg/scripts/`.
+
+<CodeBlock language="python" title="heartbeat_publisher.py">
+{HeartbeatPublisherSource}
+</CodeBlock>
+
+This simple example demonstrates the core components of an `rclpy` node:
+1.  **Initialization (`rclpy.init`)**: Starts the ROS 2 communication system.
+2.  **Node Creation**: We define a class that inherits from `rclpy.node.Node`.
+3.  **Entity Creation**: We use methods like `create_publisher` and `create_timer` to build our node's functionality.
+4.  **Spinning (`rclpy.spin`)**: This function enters a loop, keeping the node running and processing any incoming messages or timer events.
+5.  **Shutdown (`rclpy.shutdown`)**: Cleans up the ROS 2 resources.
+
+---
+
+## Chapter Summary & Next Steps
+
+In this chapter, we unpacked the core concepts of ROS 2, the middleware that enables our robotics stack. We learned about:
+-   **Nodes:** Independent programs that form the ROS 2 graph.
+-   **Topics:** For asynchronous, one-way data streams.
+-   **Services:** For synchronous, request/response interactions.
+-   **Actions:** For long-running, asynchronous, and preemptible goals.
+-   **`rclpy`:** The Python library for building ROS 2 applications.
+
+We now have both the conceptual framework of a humanoid robot (Chapter 1) and the practical communication tools to build one (Chapter 2). In the next module, we will apply this knowledge by setting up our first digital twin simulation environment in Gazebo, bringing our robot to life in a virtual world.
+
+## References
+-   ROS 2 Documentation. (n.d.). Retrieved from https://docs.ros.org
+-   Quigley, M., Conley, K., Gerkey, B., Faust, J., Foote, T., Leibs, J., ... & Ng, A. Y. (2009). ROS: an open-source Robot Operating System.

@@ -1,0 +1,63 @@
+---
+title: 'Chapter 4: Unity, High-Fidelity Simulation'
+sidebar_position: 2
+---
+
+import CodeBlock from '@theme/CodeBlock';
+import UnityScriptSource from '!!raw-loader!@site/code/unity_projects/PlaceholderJointController.cs';
+
+# Chapter 4: Unity, High-Fidelity Simulation & Interaction
+
+In the previous chapter, we explored Gazebo, a powerful tool for simulating the physics of our robot. While Gazebo is a cornerstone of robotics development, modern robotics, especially in the realm of human-robot interaction and AI-driven perception, often demands more. We need environments with photorealistic rendering, complex character animations, and a rich ecosystem of interactive tools. This is where **Unity** comes in.
+
+Unity is a professional, cross-platform game engine renowned for its high-fidelity graphics, intuitive user interface, and extensive asset store. In recent years, Unity has invested heavily in becoming a first-class platform for robotics simulation, providing a suite of tools that bridge the gap between robotics and game development.
+
+## 4.1 Why Unity for Robotics?
+
+Unity offers several key advantages that make it an excellent complement to Gazebo:
+
+-   **Photorealistic Rendering:** Unity's High Definition Render Pipeline (HDRP) can produce stunningly realistic visuals. This is crucial for training and testing computer vision models, as the more the simulation looks like reality, the better the models will perform when deployed on the physical robot (a concept known as "sim-to-real" transfer).
+-   **Synthetic Data Generation:** Unity tools allow for the automated creation of large, labeled datasets for training machine learning models. You can randomize lighting, object textures, and camera positions to generate a diverse dataset that would be prohibitively expensive to collect in the real world.
+-   **Rich Asset Ecosystem:** The Unity Asset Store provides a massive library of 3D models, environments, character animations, and tools that can be used to quickly build complex and interactive simulation scenarios.
+-   **Intuitive Editor and C# Scripting:** Unity's visual editor and C# scripting API make it relatively easy to design intricate scenes and program complex interactive behaviors, such as dynamic human characters that react to the robot.
+
+## 4.2 The Unity Robotics Hub
+
+To facilitate the use of Unity for robotics, Unity provides the **Robotics Hub**, a collection of official packages that integrate Unity with ROS.
+
+Key packages include:
+-   **ROS TCP Connector:** This package handles the low-level connection between Unity and the ROS 2 network. It allows C# scripts in Unity to publish and subscribe to ROS topics, call services, and interact with actions.
+-   **URDF Importer:** This tool allows you to import a URDF file (like the one we created for our humanoid) directly into a Unity scene, automatically converting it into a game object with the correct joint hierarchy and physics properties.
+-   **Visualizations:** Provides tools to visualize common ROS message types directly within the Unity editor, such as camera images, laser scans, and coordinate frames (TF).
+
+*(Diagram Placeholder: A diagram showing the ROS TCP Connector bridging a ROS 2 network on one side and the Unity environment on the other. A ROS node publishes motor commands, which are received by a C# script in Unity that controls a robot model.)*
+
+## 4.3 Scripting Robot Behavior in C#
+
+While ROS nodes handle the high-level "thinking" for the robot, the direct control of the robot's joints and the interaction with the Unity physics engine is done through C# scripts.
+
+Let's look at a conceptual example of a C# script that could be attached to our humanoid model in Unity. This script subscribes to a ROS topic that carries joint commands and applies those commands to the robot's ArticulationBody components. You can find this file in `code/unity_projects/PlaceholderJointController.cs`.
+
+<CodeBlock language="csharp" title="PlaceholderJointController.cs">
+{UnityScriptSource}
+</CodeBlock>
+
+This script demonstrates how seamlessly Unity can integrate with ROS:
+1.  It uses `ROSConnection` to establish a link to the ROS network.
+2.  It calls `ros.Subscribe` with a topic name and a callback function.
+3.  When a message arrives, the `OnJointCommandReceived` function is executed, which parses the message and applies forces to the robot's joints using Unity's `ArticulationBody` physics system.
+
+## Chapter Summary & Next Steps
+
+In this chapter, we explored Unity as a high-fidelity simulation environment that complements Gazebo. We learned:
+-   The advantages of Unity for robotics, including **photorealistic rendering**, **synthetic data generation**, and a rich **asset ecosystem**.
+-   The role of the **Unity Robotics Hub** in connecting Unity to ROS 2.
+-   How to use **C# scripting** to subscribe to ROS topics and control a robot model within the Unity environment.
+
+By combining Gazebo's physics fidelity with Unity's visual and interactive prowess, we now have a comprehensive simulation toolkit. We can use Gazebo for low-level dynamics and controller testing, and Unity for high-level perception and human-robot interaction development.
+
+In the next module, we will dive into the world of **NVIDIA Isaac**, a powerful platform for GPU-accelerated robotics, and learn how to implement advanced perception and navigation capabilities for our humanoid robot.
+
+## References
+-   Unity Robotics Hub Documentation. (n.d.). Retrieved from https://github.com/Unity-Technologies/Unity-Robotics-Hub
+-   Unity High Definition Render Pipeline (HDRP). (n.d.). Retrieved from https://unity.com/hdrp
