@@ -11,7 +11,7 @@ This plan details the technical approach for developing a high-performance techn
 
 ## Technical Context
 
-**Language/Version**: Python (with `rclpy` for ROS 2), C# (for Unity interaction), Markdown/MDX (for Docusaurus content). Specific versioning will align with the latest stable releases of each platform at the time of development (e.g., ROS 2 Humble/Iron, Docusaurus v3.9).  
+**Language/Version**: Python 3.13 (with `rclpy` for ROS 2), C# (for Unity interaction), Markdown/MDX (for Docusaurus content). Use all compatible versions of the other packages. Specific versioning will align with the latest stable releases of each platform at the time of development (e.g., ROS 2 Humble/Iron, Docusaurus v3.9).  
 **Primary Dependencies**: ROS 2 (core robotics framework), Gazebo (physics-based simulation), Unity (high-fidelity simulation and interaction), NVIDIA Isaac Sim (robotics simulation and synthetic data), Isaac ROS (robotics perception stack), Nav2 (ROS 2 navigation stack), OpenAI Whisper (ASR), various Large Language Models (LLMs) for VLA systems, Docusaurus v3.9 (book-writing toolchain).  
 **Storage**: Filesystem for Docusaurus content (Markdown, MDX), code examples (Python, URDF, YAML, C#), configuration files, and assets (diagrams, images, 3D models). No traditional database storage is required for the book itself.  
 **Testing**: Verification of code examples for reproducibility and correctness across specified environments. Linting/formatting checks for code and Markdown. Automated Docusaurus build validation.  

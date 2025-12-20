@@ -79,6 +79,30 @@ const config: Config = {
         },
       };
     },
+    // Plugin to add webpack dev server proxy for API calls
+    function () {
+      return {
+        name: 'webpack-dev-server-proxy',
+        configureWebpack(config, isServer) {
+          // Return additional webpack configuration for dev server proxy
+          if (!isServer) {
+            return {
+              devServer: {
+                proxy: [
+                  {
+                    context: ['/api/chatkit'],
+                    target: 'http://localhost:8000', // Backend server URL
+                    changeOrigin: true,
+                    logLevel: 'debug',
+                  },
+                ],
+              },
+            };
+          }
+          return {};
+        },
+      };
+    },
   ],
 
   themeConfig: {
@@ -101,12 +125,18 @@ const config: Config = {
           label: 'Tutorial',
         },
         {
+          to: '/chat',
+          label: 'Chat',
+          position: 'left',
+        },
+        {
           href: 'https://github.com/facebook/docusaurus',
           label: 'GitHub',
           position: 'right',
         },
       ],
     },
+    algolia: undefined, // Disable Algolia if not using it
     footer: {
       style: 'dark',
       links: [

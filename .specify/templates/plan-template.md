@@ -31,7 +31,18 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### Operational Guidelines Compliance:
+- Follow Explicit Instructions: Ensure implementation aligns only with explicitly defined requirements
+- Consult Primary Sources: Reference user prompts and project files for technical decisions
+- Verify Information: Use researched data and verified sources for technical implementations
+- Strict Course Alignment: Align with "Physical AI & Humanoid Robotics" course modules
+- Academic Reliability: Maintain technical writing with verified robotics sources
+- Consistent Terminology: Ensure consistent use of ROS 2, URDF/Xacro, controllers, etc.
+- Verified & Precise Citations: Cite official robotics manuals and peer-reviewed papers
+- Reproducible & Accurate Examples: Provide clean, reproducible examples
+- Factual Integrity: Exclude speculation or untested workflows
+- Docusaurus Adherence: Follow official Docusaurus documentation
+- Modular Independence: Guarantee chapters can be generated independently
 
 ## Project Structure
 

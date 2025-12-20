@@ -1,0 +1,242 @@
+import React, { useState, useRef, useEffect } from 'react';
+import clsx from 'clsx';
+import styles from './FloatingChat.module.css';
+
+interface Message {
+  id: string;
+  content: string;
+  sender: 'user' | 'ai';
+  timestamp: Date;
+}
+
+const FloatingChat: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Add initial welcome message
+  useEffect(() => {
+    if (isOpen && messages.length === 0) {
+      setTimeout(() => {
+        setMessages([
+          {
+            id: 'welcome',
+            content: 'Welcome! Ask me anything about Physical AI & Humanoid Robotics. I\'m here to help you explore the fascinating world of AI and robotics!',
+            sender: 'ai',
+            timestamp: new Date(),
+          }
+        ]);
+      }, 300);
+    }
+  }, [isOpen, messages.length]);
+
+  // Scroll to bottom of messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
+  }, [inputValue]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim() || isLoading) return;
+
+    try {
+      // Add user message
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        content: inputValue,
+        sender: 'user',
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, userMessage]);
+      setInputValue('');
+      setIsLoading(true);
+      setError(null);
+
+      // Call backend API
+      const response = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: inputValue,
+          user_id: 'user-' + Date.now(),
+          session_id: 'session-' + Date.now(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Add AI response
+      const aiMessage: Message = {
+        id: Date.now().toString(),
+        content: data.response,
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send message');
+
+      // Add error message to chat
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickPrompt = (prompt: string) => {
+    setInputValue(prompt);
+    // Focus the input field after setting the prompt
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 100);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
+
+  return (
+    <div className={styles.floatingChat}>
+      {isOpen ? (
+        <div className={styles.chatContainer}>
+          <div className={styles.chatHeader}>
+            <h3>RAG Assistant</h3>
+            <button
+              className={styles.closeButton}
+              onClick={() => setIsOpen(false)}
+              aria-label="Close chat"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className={styles.messagesContainer}>
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={clsx(
+                  styles.message,
+                  message.sender === 'user' ? styles['message-user'] : styles['message-ai']
+                )}
+              >
+                {message.content}
+              </div>
+            ))}
+            {isLoading && (
+              <div className={styles.typingIndicator}>
+                <div className={styles.typingDot}></div>
+                <div className={styles.typingDot}></div>
+                <div className={styles.typingDot}></div>
+                <span>AI is thinking...</span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick prompts for first message */}
+          {messages.length <= 1 && !isLoading && (
+            <div className={styles.quickPrompts}>
+              <div className={styles.quickPromptsTitle}>Try asking:</div>
+              <div className={styles.quickPromptsContainer}>
+                <button
+                  onClick={() => handleQuickPrompt('Explain neural networks in robotics')}
+                  className={styles.quickPromptBtn}
+                >
+                  Neural networks in robotics
+                </button>
+                <button
+                  onClick={() => handleQuickPrompt('How do humanoid robots maintain balance?')}
+                  className={styles.quickPromptBtn}
+                >
+                  Balance in humanoid robots
+                </button>
+                <button
+                  onClick={() => handleQuickPrompt('What is physical AI?')}
+                  className={styles.quickPromptBtn}
+                >
+                  Physical AI concepts
+                </button>
+                <button
+                  onClick={() => handleQuickPrompt('Explain reinforcement learning for robots')}
+                  className={styles.quickPromptBtn}
+                >
+                  RL for robots
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Input area */}
+          <div className={styles.inputContainer}>
+            {error && (
+              <div className={styles.errorContainer}>
+                {error}
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className={styles.inputForm}>
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about Physical AI, robotics, or humanoid technology..."
+                className={styles.inputField}
+                disabled={isLoading}
+                rows={1}
+              />
+              <button
+                type="submit"
+                disabled={!inputValue.trim() || isLoading}
+                className={styles.sendButton}
+              >
+                {isLoading ? 'Sending...' : 'Send'}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <button
+          className={styles.floatingButton}
+          onClick={() => setIsOpen(true)}
+          aria-label="Open chat"
+        >
+          🤖
+        </button>
+      )}
+    </div>
+  );
+};
+
+export default FloatingChat;

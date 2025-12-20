@@ -1,0 +1,38 @@
+import os
+from typing import Optional
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+
+class Config:
+    """Configuration class to manage environment variables and settings."""
+
+    # API Keys
+    COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
+    QDRANT_API_KEY: str = os.getenv("QDRANT_API_KEY", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
+    # Qdrant Configuration
+    QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
+    QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", 6333))
+    QDRANT_COLLECTION_NAME: str = os.getenv("QDRANT_COLLECTION_NAME", "book_chunks")
+
+    # Application Settings
+    TOP_K: int = int(os.getenv("TOP_K", 5))
+    QUERY_TIMEOUT: int = int(os.getenv("QUERY_TIMEOUT", 30))
+
+    # Validation
+    @classmethod
+    def validate(cls) -> None:
+        """Validate that required configuration values are present."""
+        if not cls.COHERE_API_KEY:
+            raise ValueError("COHERE_API_KEY environment variable is required")
+        if not cls.QDRANT_API_KEY:
+            raise ValueError("QDRANT_API_KEY environment variable is required")
+        if not cls.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY environment variable is required")
+        if not cls.QDRANT_HOST:
+            raise ValueError("QDRANT_HOST environment variable is required")

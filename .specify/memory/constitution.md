@@ -59,4 +59,15 @@ Guarantee that every chapter can be generated independently while still conformi
 
 Amendments to this constitution require documented proposals, review, and a clear migration plan for existing content. All contributions, reviews, and automated checks must verify compliance with these principles.
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-10 | **Last Amended**: 2025-12-10
+## Operational Guidelines
+
+### XIV. Follow Explicit Instructions
+Do only what has been explicitly instructed. If clarification is needed, ask for guidance before proceeding.
+
+### XV. Consult Primary Sources
+Always refer to user prompts or project files for requirements and specifications before making decisions.
+
+### XVI. Verify Information
+Use researched data and verified sources when making technical decisions or providing information.
+
+**Version**: 1.0.0 | **Ratified**: 2025-12-10 | **Last Amended**: 2025-12-16
