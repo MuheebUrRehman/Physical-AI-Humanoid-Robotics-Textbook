@@ -125,11 +125,6 @@ const config: Config = {
           label: 'Tutorial',
         },
         {
-          to: '/chat',
-          label: 'Chat',
-          position: 'left',
-        },
-        {
           href: 'https://github.com/facebook/docusaurus',
           label: 'GitHub',
           position: 'right',

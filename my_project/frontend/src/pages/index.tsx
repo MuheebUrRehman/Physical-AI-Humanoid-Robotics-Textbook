@@ -19,12 +19,7 @@ function HomepageHeader() {
         <p className="hero__subtitle">{siteConfig.tagline}</p>
         <div className={styles.buttons}>
           <Link
-            className="button button--secondary button--lg"
-            to="/chat">
-            Chat with AI Assistant 🤖
-          </Link>
-          <Link
-            className="button button--primary button--lg margin-left--md"
+            className="button button--primary button--lg"
             to="/docs/glossary">
             Get Started - glossary ⏱️
           </Link>
