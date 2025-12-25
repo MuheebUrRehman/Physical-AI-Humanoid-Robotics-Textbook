@@ -98,10 +98,12 @@ project-root/
 
 3. **agent.py** - Agent configuration, context injection, and guardrails
    - Initializes an Agent using `openai-agents` v0.6 following official SDK documentation
-   - Injects retrieved chunks into the Agent class `context` property exactly as documented
+   - Implements an Input Guardrail agent that triggers when a user asks something not relevant to book content
+   - Uses context management in the OpenAI Agents SDK by creating a context class and passing it to the runner.run via the context property
    - Passes the user query via the documented runner class
    - Applies documented guardrail mechanisms to restrict answers to book content
    - Implements content validation and filtering
+   - Removes hard-coded lists that restrict user input to book-related content
 
 ### Data Flow
 
@@ -113,9 +115,11 @@ project-root/
    - Returns top-K relevant book chunks
 4. app.py passes retrieved chunks to agent.py
 5. agent.py:
-   - Initializes agent with Gemini backend
-   - Injects book chunks as context
-   - Processes user query through agent
+   - Implements an Input Guardrail agent that first checks if the query is relevant to book content
+   - If query is off-topic, the Input Guardrail agent responds with appropriate rejection message
+   - If query is relevant, creates a context class using OpenAI Agents SDK context management
+   - Passes context and query to the BookKnowledgeAgent via the runner.run method using the context property
+   - Processes user query through agent with proper context management
    - Applies content guardrails
 6. agent.py returns response to app.py
 7. app.py formats response to strictly follow ChatKit's expected API schema and returns to client
@@ -164,7 +168,9 @@ project-root/
 
 6. **Implement agent.py module**
    - Initialize an Agent using `openai-agents` v0.6 as per official documentation
-   - Inject retrieved chunks into the Agent class `context` property exactly as documented
+   - Implement an Input Guardrail agent that triggers when a user asks something not relevant to book content
+   - Create a context class and pass it to the runner.run via the context property using OpenAI Agents SDK context management
+   - Remove hard-coded lists that restrict user input to book-related content
    - Pass the user query via the documented runner class
    - Apply documented guardrail mechanisms to restrict answers to book content
    - Add content validation and filtering
@@ -255,6 +261,7 @@ project-root/
 
 ### Documentation Resources
 - context7 MCP: For documentation access during development
+- OpenAI Agents SDK v0.6 official documentation: https://openai.github.io/openai-agents-python/
 - ChatKit official documentation: https://platform.openai.com/docs/guides/chatkit
 
 ## Complexity Tracking
