@@ -25,6 +25,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Build CORS origins from environment so deployments can be configured
+# without code changes. We normalize by removing trailing slashes because
+# FastAPI compares origins as exact strings.
+allowed_origins_env = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app",
+)
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in allowed_origins_env.split(",")
+    if origin.strip()
+]
+
 # Initialize FastAPI app
 app = FastAPI(
     title="RAG Chatbot Backend",
@@ -35,7 +48,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app/", "http://localhost:3000"],  # In production, replace with specific origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

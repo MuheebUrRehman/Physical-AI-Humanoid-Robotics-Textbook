@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import clsx from 'clsx';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import styles from './FloatingChat.module.css';
 
 interface Message {
@@ -10,6 +11,9 @@ interface Message {
 }
 
 const FloatingChat: React.FC = () => {
+  const {siteConfig} = useDocusaurusContext();
+  const configuredApiBaseUrl = String(siteConfig.customFields?.apiBaseUrl ?? 'http://localhost:8000');
+  const apiBaseUrl = configuredApiBaseUrl.replace(/\/+$/, '');
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -66,7 +70,7 @@ const FloatingChat: React.FC = () => {
       setError(null);
 
       // Call backend API
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch(`${apiBaseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

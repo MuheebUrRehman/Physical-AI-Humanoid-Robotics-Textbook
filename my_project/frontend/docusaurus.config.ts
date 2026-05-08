@@ -34,6 +34,9 @@ const config: Config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
+  customFields: {
+    apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8000',
+  },
 
   presets: [
     [
@@ -83,7 +86,7 @@ const config: Config = {
     function () {
       return {
         name: 'webpack-dev-server-proxy',
-        configureWebpack(config, isServer) {
+        configureWebpack(config, isServer): any {
           // Return additional webpack configuration for dev server proxy
           if (!isServer) {
             return {
@@ -91,7 +94,7 @@ const config: Config = {
                 proxy: [
                   {
                     context: ['/api/chatkit'],
-                    target: 'http://localhost:8000', // Backend server URL
+                    target: process.env.API_BASE_URL || 'http://localhost:8000', // Backend server URL
                     changeOrigin: true,
                     logLevel: 'debug',
                   },

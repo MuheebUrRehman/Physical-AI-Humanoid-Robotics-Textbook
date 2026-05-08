@@ -82,6 +82,19 @@ npm run start
 
 The frontend will be available at `http://localhost:3000` and the backend API at `http://localhost:8000`.
 
+### Deployment Environment Variables
+
+When frontend and backend are deployed on different domains (for example, Vercel + Hugging Face Spaces), configure these variables:
+
+- Frontend (`my_project/frontend` build environment):
+  - `API_BASE_URL=https://<your-hf-space-domain>`
+- Backend (`my_project/backend` runtime environment):
+  - `ALLOWED_ORIGINS=https://<your-vercel-domain>,http://localhost:3000`
+
+Notes:
+- Do not include a trailing slash in origins.
+- The frontend sends chat requests to `${API_BASE_URL}/chat`.
+
 ### Content Ingestion
 1. Navigate to the ingestion directory:
 ```bash
