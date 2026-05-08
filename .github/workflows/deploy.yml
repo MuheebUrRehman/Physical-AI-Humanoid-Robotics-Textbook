@@ -1,0 +1,46 @@
+name: Deploy to Hugging Face
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'my_project/backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Deploy
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        HF_USERNAME: ${{ secrets.HF_USERNAME }}
+        HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
+      run: |
+        git config --global user.email "bot@github.com"
+        git config --global user.name "Bot"
+
+        # Clone the HF Space repo
+        git clone https://huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME hf
+
+        # Copy all necessary backend files from the subdirectory to the HF repo root
+        cp my_project/backend/app.py hf/
+        cp my_project/backend/agent.py hf/
+        cp my_project/backend/config.py hf/
+        cp my_project/backend/retrieval.py hf/
+        cp my_project/backend/pyproject.toml hf/
+        cp my_project/backend/uv.lock hf/
+        cp my_project/backend/Dockerfile hf/
+        cp -r my_project/backend/models hf/
+        cp -r my_project/backend/utils hf/
+
+        # Commit and push to Hugging Face
+        cd hf
+        git add .
+        git commit -m "Deploy: Update backend files" || echo "No changes to commit"
+        git push https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main
