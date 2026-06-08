@@ -4,7 +4,7 @@ title: Setup Docusaurus Website Structure
 stage: green
 date: 2025-12-10
 surface: agent
-model: gemini-pro
+model: gemini-3.5-flash
 feature: 001-physical-ai-book
 branch: 001-physical-ai-book
 user: {{USER}}

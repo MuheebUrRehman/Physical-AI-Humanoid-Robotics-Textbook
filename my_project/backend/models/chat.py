@@ -1,13 +1,28 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 
 class ChatRequest(BaseModel):
     """Request model for chat interactions."""
 
     query: str = Field(..., description="The user's query or question", min_length=1, max_length=2000)
-    user_id: Optional[str] = Field(None, description="Optional user identifier")
-    session_id: Optional[str] = Field(None, description="Optional session identifier")
+    user_id: str = Field(..., description="Unique user identifier")
+    session_id: str = Field(..., description="Unique session identifier")
+
+
+class AgentResponse(BaseModel):
+    """Structured response from the AI Agent."""
+
+    answer: str = Field(..., description="The grounded response based on book content")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score of the response")
+    citations: List[str] = Field(default_factory=list, description="List of source file paths or chapter titles referenced")
+
+
+class SSEMessage(BaseModel):
+    """Schema for Server-Sent Events messages."""
+
+    type: str = Field(..., description="Event type: 'token', 'final', or 'error'")
+    content: Union[str, AgentResponse] = Field(..., description="Content of the event")
 
 
 class ChatResponse(BaseModel):

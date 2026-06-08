@@ -2,21 +2,22 @@ import logging
 import os
 import sys
 import time
+import json
+import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, AsyncGenerator
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from config import Config
-from models.chat import ChatRequest, ChatResponse, ErrorResponse, HealthCheckResponse, ChatKitSessionRequest, ChatKitSessionResponse
+from models.chat import ChatRequest, ChatResponse, ErrorResponse, HealthCheckResponse, SSEMessage, AgentResponse
 from pydantic import BaseModel
-from typing import Optional
 import secrets
 from retrieval import get_relevant_chunks
-from agent import get_agent_response
+from agent import book_knowledge_agent, Runner
 
 # Configure logging
 logging.basicConfig(
@@ -84,19 +85,6 @@ async def root():
             }}
 
 
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """General exception handler for the application."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content=ErrorResponse(
-            error="An unexpected error occurred",
-            error_code="INTERNAL_ERROR",
-        ).model_dump()
-    )
-
-
 @app.get("/health", response_model=HealthCheckResponse)
 async def health_check():
     """Health check endpoint to verify service status."""
@@ -107,105 +95,111 @@ async def health_check():
     )
 
 
-@app.post("/api/chatkit/session", response_model=ChatKitSessionResponse)
-async def create_chatkit_session(request: ChatKitSessionRequest):
+async def chat_stream_generator(request: ChatRequest, relevant_chunks: list[str]) -> AsyncGenerator[str, None]:
+    """Generator for SSE events from the agent stream."""
+    tokens_yielded = 0
+    try:
+        logger.info(f"Starting agent stream for query: {request.query[:50]}...")
+        
+        # Start streaming from the agent
+        stream = Runner.run_streamed(
+            book_knowledge_agent,
+            request.query,
+            context={
+                "book_chunks": relevant_chunks,
+                "user_id": request.user_id,
+                "session_id": request.session_id
+            }
+        )
+
+        async for event in stream.stream_events():
+            # Handle token deltas from the raw response
+            if event.type == "raw_response_event":
+                data = event.data
+                
+                # IMPORTANT: Filter out tokens that might come from the judge agent
+                # The BookKnowledgeAgent uses gemini-3.5-flash
+                # The JudgeAgent uses gemini-3.1-flash-lite
+                model = getattr(getattr(data, "response", None), "model", "")
+                if "3.1" in str(model):
+                    continue
+
+                delta = getattr(data, "delta", None)
+                if delta:
+                    tokens_yielded += 1
+                    message = SSEMessage(type="token", content=delta)
+                    yield f"data: {message.model_dump_json()}\n\n"
+
+            # Handle the final completion of the agent run
+            elif event.type == "run_item_stream_event":
+                result = getattr(event, "result", None)
+                if result and hasattr(result, "final_output"):
+                    final_output = result.final_output
+                    if final_output:
+                        logger.info(f"Final output received: {str(final_output)[:50]}...")
+                        # If it's a structured response (AgentResponse), use it
+                        # Otherwise wrap it in an AgentResponse
+                        if isinstance(final_output, AgentResponse):
+                            message = SSEMessage(type="final", content=final_output)
+                        else:
+                            message = SSEMessage(type="final", content=AgentResponse(
+                                answer=str(final_output),
+                                confidence=0.85,
+                                citations=[]
+                            ))
+                        yield f"data: {message.model_dump_json()}\n\n"
+                        tokens_yielded += 1
+
+        if tokens_yielded == 0:
+            logger.warning("Stream finished but no tokens or final result were yielded.")
+            error_message = SSEMessage(type="error", content="The AI generated an empty response. Please try a different question.")
+            yield f"data: {error_message.model_dump_json()}\n\n"
+
+    except Exception as e:
+        from agents import InputGuardrailTripwireTriggered
+        if "InputGuardrailTripwireTriggered" in str(type(e)):
+            logger.info("Guardrail triggered (InputGuardrailTripwireTriggered)")
+            error_message = SSEMessage(type="error", content="Off-topic query detected. I can only answer questions related to Physical AI and Robotics.")
+            yield f"data: {error_message.model_dump_json()}\n\n"
+        else:
+            logger.error(f"Error in chat stream: {e}", exc_info=True)
+            error_message = SSEMessage(type="error", content=f"Streaming error: {str(e)}")
+            yield f"data: {error_message.model_dump_json()}\n\n"
+
+
+@app.post("/chat")
+async def chat_endpoint(request: ChatRequest):
     """
-    Create a ChatKit session and return a client secret.
-    This endpoint follows the pattern expected by ChatKit for session management.
+    Main chat endpoint for the RAG system with SSE streaming.
     """
-    # Generate a temporary client secret (in a real implementation, this would
-    # integrate with OpenAI's ChatKit service to get a proper client secret)
-    client_secret = f"chatkit_{secrets.token_urlsafe(32)}"
-
-    # Return the client secret and an optional thread ID
-    return ChatKitSessionResponse(
-        client_secret=client_secret,
-        thread_id=None  # Start with a new thread
-    )
-
-
-@app.post("/api/chatkit/refresh", response_model=ChatKitSessionResponse)
-async def refresh_chatkit_session():
-    """
-    Refresh a ChatKit session.
-    This endpoint follows the pattern expected by ChatKit for token refreshing.
-    """
-    # Generate a new client secret for refresh
-    client_secret = f"chatkit_{secrets.token_urlsafe(32)}"
-
-    return ChatKitSessionResponse(
-        client_secret=client_secret,
-        thread_id=None
-    )
-
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest, response: Response):
-    """
-    Main chat endpoint for the RAG system.
-
-    This endpoint receives a user query, retrieves relevant book chunks,
-    processes the query with the agent, and returns a response grounded
-    in the book content.
-    """
-    start_time = time.time()
-
     try:
         # Validate the request
         from utils.validation import validate_query, validate_user_id, validate_session_id
 
-        is_valid, error_msg = validate_query(request.query)
+        is_valid, error_msg, sanitized_query = validate_query(request.query)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_msg)
 
-        user_valid, user_error = validate_user_id(request.user_id)
-        if not user_valid:
-            raise HTTPException(status_code=400, detail=user_error)
+        # Retrieve relevant chunks from vector store using the sanitized query
+        logger.info(f"Retrieving relevant chunks for query: {sanitized_query[:50]}...")
+        relevant_chunks = await get_relevant_chunks(sanitized_query)
 
-        session_valid, session_error = validate_session_id(request.session_id)
-        if not session_valid:
-            raise HTTPException(status_code=400, detail=session_error)
+        # Create a new request object with the sanitized query for the stream generator
+        sanitized_request = request.model_copy(update={"query": sanitized_query})
 
-        # Retrieve relevant chunks from vector store
-        retrieval_start = time.time()
-        logger.info(f"Retrieving relevant chunks for query: {request.query[:50]}...")
-        relevant_chunks = await get_relevant_chunks(request.query)
-        retrieval_time = time.time() - retrieval_start
-
-        # Generate response using the agent
-        agent_start = time.time()
-        logger.info("Generating response with agent...")
-        response_text = await get_agent_response(request.query, relevant_chunks)
-        agent_time = time.time() - agent_start
-
-        # If the response indicates off-topic query, set confidence lower
-        is_off_topic = "only answer questions related to the technical book content" in response_text.lower()
-        confidence = 0.3 if is_off_topic else 0.8
-
-        total_time = time.time() - start_time
-        logger.info(f"Request completed in {total_time:.2f}s (retrieval: {retrieval_time:.2f}s, agent: {agent_time:.2f}s)")
-
-        # Add performance metrics to response headers
-        response.headers["X-Response-Time"] = f"{total_time:.3f}"
-        response.headers["X-Retrieval-Time"] = f"{retrieval_time:.3f}"
-        response.headers["X-Agent-Time"] = f"{agent_time:.3f}"
-        response.headers["X-Total-Time"] = f"{total_time:.3f}"
-
-        return ChatResponse(
-            response=response_text,
-            source_chunks=relevant_chunks if not is_off_topic else [],
-            confidence=confidence
+        # Return the streaming response
+        return StreamingResponse(
+            chat_stream_generator(sanitized_request, relevant_chunks),
+            media_type="text/event-stream"
         )
 
     except HTTPException:
-        # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
-        total_time = time.time() - start_time
-        logger.error(f"Error in chat endpoint after {total_time:.2f}s: {e}", exc_info=True)
+        logger.error(f"Error in chat endpoint setup: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"An error occurred while processing your request: {str(e)}"
+            detail=f"An error occurred while setting up the stream: {str(e)}"
         )
 
 

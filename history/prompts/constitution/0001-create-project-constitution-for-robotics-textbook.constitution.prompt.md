@@ -4,7 +4,7 @@ title: Create Project Constitution for Robotics Textbook
 stage: constitution
 date: 2025-12-10
 surface: agent
-model: gemini-pro
+model: gemini-3.5-flash
 feature: none
 branch: main
 user: MuheebUrRehman

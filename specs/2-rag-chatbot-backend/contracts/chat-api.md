@@ -81,7 +81,7 @@ This document defines the API contract for the chat endpoint that integrates wit
     }
   ],
   "created": 1703325600,
-  "model": "gemini-2.5-flash",
+  "model": "gemini-3.5-flash",
   "object": "chat.completion",
   "usage": {
     "prompt_tokens": 120,

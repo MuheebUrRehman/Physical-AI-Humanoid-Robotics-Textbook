@@ -3,6 +3,12 @@
 ## Overview
 The RAG Chatbot Backend provides a Retrieval-Augmented Generation chat interface for technical book content. The system uses Cohere for embeddings, Qdrant for vector storage, and Gemini for response generation.
 
+## Architecture & Performance
+The backend utilizes a non-blocking asynchronous architecture:
+- **Async Retrieval**: Cohere embeddings and Qdrant searches are performed using asynchronous clients to prevent event loop blocking.
+- **Guardrail Singleton**: The input guardrail uses a pre-initialized singleton agent with `gemini-3.1-flash-lite` for ultra-fast validation.
+- **Streaming**: Responses are delivered word-by-word via Server-Sent Events (SSE).
+
 ## Base URL
 ```
 http://localhost:8000

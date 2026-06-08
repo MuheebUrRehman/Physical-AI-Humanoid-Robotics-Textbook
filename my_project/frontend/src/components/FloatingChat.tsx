@@ -55,11 +55,12 @@ const FloatingChat: React.FC = () => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading) return;
 
+    const userQuery = inputValue;
     try {
       // Add user message
       const userMessage: Message = {
         id: Date.now().toString(),
-        content: inputValue,
+        content: userQuery,
         sender: 'user',
         timestamp: new Date(),
       };
@@ -69,6 +70,16 @@ const FloatingChat: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
+      // Create a placeholder AI message for streaming
+      const aiMessageId = (Date.now() + 1).toString();
+      const aiPlaceholder: Message = {
+        id: aiMessageId,
+        content: '',
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, aiPlaceholder]);
+
       // Call backend API
       const response = await fetch(`${apiBaseUrl}/chat`, {
         method: 'POST',
@@ -76,9 +87,9 @@ const FloatingChat: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: inputValue,
-          user_id: 'user-' + Date.now(),
-          session_id: 'session-' + Date.now(),
+          query: userQuery,
+          user_id: 'user-default', // In a real app, this would be from auth
+          session_id: 'session-default',
         }),
       });
 
@@ -86,22 +97,61 @@ const FloatingChat: React.FC = () => {
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedBuffer = '';
 
-      // Add AI response
-      const aiMessage: Message = {
-        id: Date.now().toString(),
-        content: data.response,
-        sender: 'ai',
-        timestamp: new Date(),
-      };
+      if (!reader) {
+        throw new Error('Response body is null');
+      }
 
-      setMessages(prev => [...prev, aiMessage]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        accumulatedBuffer += decoder.decode(value, { stream: true });
+        
+        // Split by the standard SSE double-newline delimiter
+        const parts = accumulatedBuffer.split('\n\n');
+        
+        // Keep the last part in the buffer if it's incomplete
+        accumulatedBuffer = parts.pop() || '';
+
+        for (const line of parts) {
+          const trimmedLine = line.trim();
+          if (trimmedLine.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(trimmedLine.slice(6));
+              
+              if (data.type === 'token') {
+                accumulatedContent += data.content;
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === aiMessageId ? { ...msg, content: accumulatedContent } : msg
+                  )
+                );
+              } else if (data.type === 'final') {
+                // Final structured data reached
+                const finalResponse = data.content;
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === aiMessageId ? { ...msg, content: finalResponse.answer } : msg
+                  )
+                );
+              } else if (data.type === 'error') {
+                setError(data.content);
+              }
+            } catch (parseErr) {
+              console.error('SSE parse error on line:', trimmedLine, parseErr);
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error('Error sending message:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
 
-      // Add error message to chat
+      // Add error message to chat if not already showing one
       const errorMessage: Message = {
         id: Date.now().toString(),
         content: 'Sorry, I encountered an error processing your request. Please try again.',

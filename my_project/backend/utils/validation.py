@@ -2,24 +2,24 @@ import html
 import re
 from typing import Optional
 
-def validate_query(query: str) -> tuple[bool, Optional[str]]:
+def validate_query(query: str) -> tuple[bool, Optional[str], str]:
     """
-    Validate user query for the RAG chatbot with enhanced security measures.
+    Validate and sanitize user query for the RAG chatbot.
 
     Args:
         query: The user's query string
 
     Returns:
-        Tuple of (is_valid, error_message)
+        Tuple of (is_valid, error_message, sanitized_query)
     """
     if not query or not query.strip():
-        return False, "Query cannot be empty"
+        return False, "Query cannot be empty", query
 
     if len(query.strip()) < 3:
-        return False, "Query must be at least 3 characters long"
+        return False, "Query must be at least 3 characters long", query
 
     if len(query) > 2000:
-        return False, "Query exceeds maximum length of 2000 characters"
+        return False, "Query exceeds maximum length of 2000 characters", query
 
     # Sanitize the query to prevent injection attacks
     sanitized_query = html.escape(query)
@@ -43,7 +43,7 @@ def validate_query(query: str) -> tuple[bool, Optional[str]]:
 
     for pattern in harmful_patterns:
         if re.search(pattern, query, re.IGNORECASE):
-            return False, "Query contains potentially harmful content"
+            return False, "Query contains potentially harmful content", query
 
     # Additional check: look for SQL injection patterns
     sql_patterns = [
@@ -55,9 +55,9 @@ def validate_query(query: str) -> tuple[bool, Optional[str]]:
 
     for pattern in sql_patterns:
         if re.search(pattern, query, re.IGNORECASE):
-            return False, "Query contains potentially harmful SQL content"
+            return False, "Query contains potentially harmful SQL content", query
 
-    return True, None
+    return True, None, sanitized_query
 
 
 def validate_user_id(user_id: Optional[str]) -> tuple[bool, Optional[str]]:

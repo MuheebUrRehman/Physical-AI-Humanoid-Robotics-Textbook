@@ -9,6 +9,12 @@ dependencies = [
     "fastapi[standard]>=0.124.4",
     "openai-agents>=0.6.3",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.4.0",
     "python-dotenv>=1.2.1",
     "qdrant-client>=1.16.2",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
 ]

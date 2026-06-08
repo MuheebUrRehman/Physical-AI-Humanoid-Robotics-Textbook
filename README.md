@@ -32,6 +32,7 @@ my_project/
 
 ### Prerequisites
 - Python 3.13+
+- [uv](https://docs.astral.sh/uv/) (Modern Python package manager)
 - Node.js v18+
 
 ### Backend Setup and Run
@@ -40,11 +41,9 @@ my_project/
 cd my_project/backend
 ```
 
-2. Set up a virtual environment and install dependencies:
+2. Sync dependencies and set up the environment:
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+uv sync
 ```
 
 3. Configure environment variables in `.env` file:
@@ -61,7 +60,7 @@ QUERY_TIMEOUT=30
 
 4. Start the backend server:
 ```bash
-uvicorn app:app --reload --port 8000
+uv run uvicorn app:app --reload --port 8000
 ```
 
 ### Frontend Setup and Run
