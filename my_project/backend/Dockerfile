@@ -11,7 +11,6 @@ RUN uv sync --frozen --no-group dev
 COPY *.py ./
 COPY models/ ./models/
 COPY utils/ ./utils/
-COPY scripts/ ./scripts/
 
 EXPOSE 7860
 
