@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChatKit, useChatKit } from '@openai/chatkit-react';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import styles from './ChatKitWidget.module.css';
 import { createChatKitFetch } from '../utils/chatkit-fetch';
 
 const ChatKitWidget: React.FC = () => {
+  const {siteConfig} = useDocusaurusContext();
+  const {customFields} = siteConfig as typeof siteConfig & {customFields: {apiBaseUrl?: string; chatkitDomainKey?: string}};
+  const apiBaseUrl = customFields?.apiBaseUrl || 'http://localhost:8000';
+  const chatkitDomainKey = customFields?.chatkitDomainKey || 'physical-ai-textbook-local';
+
   const [isOpen, setIsOpen] = useState(false);
   const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +32,8 @@ const ChatKitWidget: React.FC = () => {
   // Initialize ChatKit with the backend protocol endpoint and custom fetch
   const { control, setComposerValue } = useChatKit({
     api: {
-      url: '/chatkit',
-      domainKey: 'physical-ai-textbook-local',
+      url: `${apiBaseUrl}/chatkit`,
+      domainKey: chatkitDomainKey,
       fetch: chatkitFetch,
     },
     onError: (event) => {

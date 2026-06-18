@@ -1,9 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "build",
-  "framework": null,
-  "rewrites": [
-    { "source": "/api/chatkit/(.*)", "destination": "https://$API_BASE_URL/api/chatkit/$1" },
-    { "source": "/chatkit/(.*)", "destination": "https://$API_BASE_URL/chatkit/$1" }
-  ]
+  "framework": null
 }

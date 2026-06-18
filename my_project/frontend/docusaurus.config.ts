@@ -33,6 +33,7 @@ const config: Config = {
   ],
   customFields: {
     apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8000',
+    chatkitDomainKey: process.env.CHATKIT_DOMAIN_KEY || 'physical-ai-textbook-local',
   },
 
   presets: [
