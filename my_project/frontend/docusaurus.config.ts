@@ -5,35 +5,32 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
+  title: 'Physical AI & Humanoid Robotics',
+  tagline: 'A Comprehensive Guide to Embodied Intelligence',
   favicon: 'img/favicon.ico',
 
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    v4: true,
   },
 
-  // Set the production url of your site here
-  url: 'https://your-docusaurus-site.example.com',
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
+  url: 'https://physical-ai-humanoid-robotics-textbook.vercel.app',
   baseUrl: '/',
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'facebook', // Usually your GitHub org/user name.
-  projectName: 'docusaurus', // Usually your repo name.
+  organizationName: 'panaversity',
+  projectName: 'physical-ai-humanoid-robotics-textbook',
 
   onBrokenLinks: 'throw',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
+  stylesheets: [
+    {
+      href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap',
+      type: 'text/css',
+    },
+  ],
   customFields: {
     apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8000',
   },
@@ -44,10 +41,8 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/panaversity/physical-ai-humanoid-robotics-textbook/tree/main/my_project/frontend',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -93,7 +88,7 @@ const config: Config = {
               devServer: {
                 proxy: [
                   {
-                    context: ['/api/chatkit'],
+                    context: ['/api/chatkit', '/chatkit'],
                     target: process.env.API_BASE_URL || 'http://localhost:8000', // Backend server URL
                     changeOrigin: true,
                     logLevel: 'debug',
@@ -108,16 +103,24 @@ const config: Config = {
     },
   ],
 
+  scripts: [
+    {
+      src: 'https://cdn.platform.openai.com/deployments/chatkit/chatkit.js',
+      async: true,
+    },
+  ],
+
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
     colorMode: {
+      defaultMode: 'dark',
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'My Site',
+      title: 'Physical AI Robotics',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'Physical AI Robotics Logo',
         src: 'img/logo.svg',
       },
       items: [
@@ -128,55 +131,31 @@ const config: Config = {
           label: 'Tutorial',
         },
         {
-          href: 'https://github.com/facebook/docusaurus',
+          href: 'https://github.com/panaversity/physical-ai-humanoid-robotics-textbook',
           label: 'GitHub',
           position: 'right',
         },
       ],
     },
-    algolia: undefined, // Disable Algolia if not using it
     footer: {
       style: 'dark',
       links: [
         {
           title: 'Docs',
           items: [
-            {
-              label: 'Getting Started',
-              to: '/docs/module1/chapter1',
-            },
+            { label: 'Getting Started', to: '/docs/module1/chapter1' },
           ],
         },
         {
           title: 'Community',
           items: [
-            {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-            },
-            {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
-            },
-            {
-              label: 'X',
-              href: 'https://x.com/docusaurus',
-            },
-          ],
-        },
-        {
-          title: 'More',
-          items: [
-            {
-              label: 'GitHub',
-              href: 'https://github.com/facebook/docusaurus',
-            },
+            { label: 'GitHub', href: 'https://github.com/panaversity/physical-ai-humanoid-robotics-textbook' },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Physical AI & Humanoid Robotics`,
     },
-    prism: {
+  prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
     },

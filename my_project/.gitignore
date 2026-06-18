@@ -1,9 +1,0 @@
-.env
-ingestion.log
-backend/__pycache__
-backend/.venv
-backend/models/__pycache__
-backend/utils/__pycache__
-frontend/.docusaurus
-frontend/build
-frontend/node_modules

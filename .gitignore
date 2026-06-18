@@ -6,11 +6,6 @@ __pycache__/
 venv/
 ENV/
 env/
-.env
-.env.*
-!.env.example
-build/
-dist/
 *.egg-info/
 .pytest_cache/
 
@@ -22,6 +17,19 @@ yarn-error.log*
 .docusaurus/
 .cache/
 
+# Databases
+my_project/backend/chatkit.db
+my_project/backend/chatkit.db-journal
+
+# Logs
+my_project/ingestion/ingestion.log
+
+# Build output
+my_project/frontend/build/
+
+# Docusaurus build
+my_project/frontend/.docusaurus/
+
 # Universal
 .DS_Store
 Thumbs.db
@@ -29,3 +37,9 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
+# Environment
+my_project/.env
+.env.*
+!.env.example
+skills-lock.json

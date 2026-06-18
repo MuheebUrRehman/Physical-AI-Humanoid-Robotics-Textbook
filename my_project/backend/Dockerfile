@@ -6,11 +6,12 @@ RUN pip install uv
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-group dev
 
-COPY app.py agent.py config.py retrieval.py ./
+COPY *.py ./
 COPY models/ ./models/
 COPY utils/ ./utils/
+COPY scripts/ ./scripts/
 
 EXPOSE 7860
 

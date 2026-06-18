@@ -11,7 +11,7 @@ import argparse
 import logging
 from typing import List, Dict, Tuple, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import time
 from dotenv import load_dotenv
@@ -44,7 +44,7 @@ def load_config():
         'qdrant_api_key': os.getenv('QDRANT_API_KEY'),
         'qdrant_host': os.getenv('QDRANT_HOST', 'localhost'),
         'qdrant_port': int(os.getenv('QDRANT_PORT', 6333)),
-        'docs_directory': os.getenv('DOCS_DIR', './my-website/docs'),
+        'docs_directory': os.getenv('DOCS_DIR', './my_project/frontend/docs'),
         'chunk_size': int(os.getenv('CHUNK_SIZE', 512)),
         'chunk_overlap': int(os.getenv('CHUNK_OVERLAP', 50)),
         'cohere_model': os.getenv('COHERE_MODEL', 'embed-multilingual-v3.0')
@@ -158,7 +158,7 @@ class VectorRecord:
         self.module = module
         self.chapter = chapter
         self.chunk_index = chunk_index
-        self.created_at = created_at or datetime.utcnow()
+        self.created_at = created_at or datetime.now(timezone.utc)
 
     def to_payload(self) -> Dict:
         """Convert the VectorRecord to a payload dictionary for Qdrant storage."""
@@ -1220,8 +1220,8 @@ def create_cli_parser():
     parser.add_argument(
         '--docs-dir',
         type=str,
-        default='./my-website/docs',
-        help='Directory containing MDX files (default: ./my-website/docs)'
+        default='./my_project/frontend/docs',
+        help='Directory containing MDX files (default: ./my_project/frontend/docs)'
     )
     parser.add_argument(
         '--chunk-size',

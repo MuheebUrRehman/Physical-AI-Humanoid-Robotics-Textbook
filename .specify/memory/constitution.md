@@ -1,73 +1,55 @@
-<!--
-Sync Impact Report:
-- Version change: 0.0.0 → 1.0.0
-- List of modified principles: All principles established from user prompt.
-- Added sections: Core Principles, Structural & Tooling Standards, Governance
-- Removed sections: All template placeholders
-- Templates requiring updates:
-  - ✅ .specify/templates/plan-template.md
-  - ✅ .specify/templates/spec-template.md
-  - ✅ .specify/templates/tasks-template.md
-- Follow-up TODOs: None
--->
-# Physical AI & Humanoid Robotics Textbook Constitution
+# [PROJECT_NAME] Constitution
+<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
 
-## Core Principles (Content & Quality)
+## Core Principles
 
-### I. Strict Course Alignment
-Align strictly with the “Physical AI & Humanoid Robotics” course modules and learning outcomes.
+### [PRINCIPLE_1_NAME]
+<!-- Example: I. Library-First -->
+[PRINCIPLE_1_DESCRIPTION]
+<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
 
-### II. Academic Reliability
-Maintain academically reliable, technical writing using verified robotics sources and primary documentation.
+### [PRINCIPLE_2_NAME]
+<!-- Example: II. CLI Interface -->
+[PRINCIPLE_2_DESCRIPTION]
+<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
 
-### III. Consistent Terminology
-Ensure consistent terminology across ROS 2, URDF/Xacro, controllers, Gazebo, Unity, Isaac Sim, Isaac ROS, Nav2, Whisper, and VLA systems.
+### [PRINCIPLE_3_NAME]
+<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
+[PRINCIPLE_3_DESCRIPTION]
+<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
 
-### IV. Verified & Precise Citations
-Cite official robotics manuals, ROS REP standards, peer-reviewed papers, and vendor docs with precise references.
+### [PRINCIPLE_4_NAME]
+<!-- Example: IV. Integration Testing -->
+[PRINCIPLE_4_DESCRIPTION]
+<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
 
-### V. Reproducible & Accurate Examples
-Provide clean examples, reproducible steps, and accurate system descriptions for every concept.
+### [PRINCIPLE_5_NAME]
+<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
+[PRINCIPLE_5_DESCRIPTION]
+<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
 
-### VI. Factual Integrity
-Exclude speculation, filler, non-verifiable statements, or untested workflows.
+### [PRINCIPLE_6_NAME]
 
-### VII. Minimum Chapter Length
-Each chapter will be at least 1000 words long.
 
-## Structural & Tooling Standards
+[PRINCIPLE__DESCRIPTION]
 
-### VIII. Predictable Chapter Structure
-Enforce a predictable chapter pattern: Concept explanation → Diagram/code → Applied example → References.
+## [SECTION_2_NAME]
+<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
 
-### IX. Real-World Conventions
-Ensure diagrams and code samples follow real-world robotics conventions and compile/run where applicable.
+[SECTION_2_CONTENT]
+<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
 
-### X. Accessibility
-Require accessibility through consistent formatting, a glossary of robotics terms, and modular chapter independence.
+## [SECTION_3_NAME]
+<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
 
-### XI. Approved Toolchain
-Use only the approved book-writing toolchain: Docusaurus v3.9.
-
-### XII. Docusaurus Adherence
-Follow official Docusaurus documentation for structure, navigation, deployment, theming, and content organization.
-
-### XIII. Modular Independence
-Guarantee that every chapter can be generated independently while still conforming to the global constitution.
+[SECTION_3_CONTENT]
+<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
 
 ## Governance
+<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-Amendments to this constitution require documented proposals, review, and a clear migration plan for existing content. All contributions, reviews, and automated checks must verify compliance with these principles.
+[GOVERNANCE_RULES]
+<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
 
-## Operational Guidelines
-
-### XIV. Follow Explicit Instructions
-Do only what has been explicitly instructed. If clarification is needed, ask for guidance before proceeding.
-
-### XV. Consult Primary Sources
-Always refer to user prompts or project files for requirements and specifications before making decisions.
-
-### XVI. Verify Information
-Use researched data and verified sources when making technical decisions or providing information.
-
-**Version**: 1.0.0 | **Ratified**: 2025-12-10 | **Last Amended**: 2025-12-16
+**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
+<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import List
+from typing import List, Dict
 
 import cohere
 from qdrant_client import AsyncQdrantClient
@@ -11,8 +11,8 @@ from config import Config
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Initialize Cohere async client
-co = cohere.AsyncClient(api_key=Config.COHERE_API_KEY)
+# Initialize Cohere async client v2
+co = cohere.AsyncClientV2(api_key=Config.COHERE_API_KEY)
 
 # Initialize Qdrant async client
 qdrant_client = AsyncQdrantClient(
@@ -23,7 +23,7 @@ qdrant_client = AsyncQdrantClient(
 )
 
 
-async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[str]:
+async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str, str]]:
     """
     Retrieve relevant book chunks from Qdrant based on the user query.
 
@@ -36,12 +36,12 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[str]:
     """
     for attempt in range(max_retries):
         try:
-            # Generate embedding for the query using Cohere with timeout
+            # Generate embedding for the query using Cohere v2 API with timeout
             start_time = time.time()
             response = await co.embed(
                 texts=[query],
-                model="embed-multilingual-v3.0",  # Using multilingual model for broader coverage
-                input_type="search_query"  # Required parameter for the embedding API
+                model="embed-multilingual-v3.0",
+                input_type="search_query"
             )
             embedding_time = time.time() - start_time
 
@@ -50,7 +50,8 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[str]:
                 continue  # Retry if timeout exceeded
 
 
-            query_embedding = response.embeddings[0]
+            # v2 response has embeddings under the float_ key
+            query_embedding = response.embeddings.float_[0]
 
             # Perform similarity search in Qdrant with timeout
             start_time = time.time()
@@ -66,15 +67,21 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[str]:
                 logger.warning(f"Qdrant search took {search_time:.2f}s, exceeding timeout of {Config.QUERY_TIMEOUT}s")
                 continue  # Retry if timeout exceeded
 
-            # Extract text chunks from the search results
+            # Extract text chunks with source metadata from search results
             relevant_chunks = []
-            # search_results is a QueryResponse object with points attribute
             for result in search_results.points:
                 if result.payload and "text" in result.payload:
-                    relevant_chunks.append(result.payload["text"])
+                    relevant_chunks.append({
+                        "text": result.payload["text"],
+                        "source": result.payload.get("source_file", ""),
+                        "module": result.payload.get("module", ""),
+                        "chapter": result.payload.get("chapter", "")
+                    })
                 elif result.payload:
-                    # If 'text' key is not present, use the entire payload as string
-                    relevant_chunks.append(str(result.payload))
+                    relevant_chunks.append({
+                        "text": str(result.payload),
+                        "source": ""
+                    })
 
             return relevant_chunks
 
@@ -110,7 +117,7 @@ async def embed_query(query: str, max_retries: int = 3) -> List[float]:
                 model="embed-multilingual-v3.0",
                 input_type="search_query"
             )
-            return response.embeddings[0]
+            return response.embeddings.float_[0]
         except Exception as e:
             logger.error(f"Attempt {attempt + 1} failed in embed_query: {e}")
             if attempt == max_retries - 1:

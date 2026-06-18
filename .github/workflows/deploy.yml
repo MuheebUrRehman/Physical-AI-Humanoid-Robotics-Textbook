@@ -36,6 +36,8 @@ jobs:
         cp my_project/backend/pyproject.toml hf/
         cp my_project/backend/uv.lock hf/
         cp my_project/backend/Dockerfile hf/
+        cp my_project/backend/store.py hf/
+        cp my_project/backend/chatkit_server.py hf/
         cp -r my_project/backend/models hf/
         cp -r my_project/backend/utils hf/
 

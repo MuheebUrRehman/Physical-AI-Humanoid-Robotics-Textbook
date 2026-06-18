@@ -11,18 +11,31 @@ from models.chat import AgentResponse
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Initialize the Judge Agent as a singleton to avoid per-request overhead
-# Using the lightweight flash-lite model for fast classification
+
+def _build_openai_client() -> AsyncOpenAI:
+    """Build an OpenAI-compatible client pointing at OpenRouter (or any provider).
+
+    Injects identity headers required by OpenRouter. Works with any
+    OpenAI-compatible endpoint by changing LLM_BASE_URL / LLM_API_KEY.
+    """
+    return AsyncOpenAI(
+        api_key=Config.LLM_API_KEY,
+        base_url=Config.LLM_BASE_URL,
+        default_headers={
+            "HTTP-Referer": Config.LLM_SITE_URL,
+            "X-Title": Config.LLM_APP_NAME,
+        },
+    )
+
+
+# Judge Agent — singleton for fast off-topic detection
 judge_agent = Agent(
     name="Judge",
     instructions="Determine if the input is related to physical AI, robotics, or technical topics. Respond with 'yes' or 'no'.",
     model=OpenAIChatCompletionsModel(
-        model=Config.GEMINI_31_LITE_MODEL,
-        openai_client=AsyncOpenAI(
-            api_key=Config.GEMINI_API_KEY,
-            base_url="https://generativelanguage.googleapis.com/v1beta/"
-        )
-    )
+        model=Config.LLM_MODEL,
+        openai_client=_build_openai_client(),
+    ),
 )
 
 
@@ -34,19 +47,20 @@ async def check_query_relevance(
     Native Input Guardrail using the global judge_agent singleton.
     """
     try:
-        # Reuse the pre-initialized judge_agent instance
         result = await Runner.run(judge_agent, f"Analyze: {input_text}")
         response = result.final_output.lower().strip()
         is_relevant = 'yes' in response
-        
+
         return GuardrailFunctionOutput(
             tripwire_triggered=not is_relevant,
             output_info="Off-topic query detected" if not is_relevant else None
         )
     except Exception as e:
         logger.error(f"Error in native guardrail: {e}")
-        # Fail open for safety if guardrail fails technical execution
-        return GuardrailFunctionOutput(tripwire_triggered=False)
+        return GuardrailFunctionOutput(
+            output_info=None,
+            tripwire_triggered=False,
+        )
 
 
 def book_knowledge_instructions(ctx: RunContextWrapper, agent: Agent) -> str:
@@ -54,29 +68,39 @@ def book_knowledge_instructions(ctx: RunContextWrapper, agent: Agent) -> str:
     Dynamic instructions that inject book chunks into the system prompt.
     """
     book_chunks = ctx.context.get("book_chunks", [])
-    chunks_text = "\n\n".join([f"Chunk {i+1}:\n{chunk}" for i, chunk in enumerate(book_chunks)])
-    
+    chunk_lines = []
+    for i, chunk in enumerate(book_chunks):
+        if isinstance(chunk, dict):
+            source = chunk.get("source", "")
+            text = chunk.get("text", str(chunk))
+            label = f"Chunk {i+1}" + (f" [from {source}]" if source else "")
+            chunk_lines.append(f"{label}:\n{text}")
+        else:
+            chunk_lines.append(f"Chunk {i+1}:\n{chunk}")
+    chunks_text = "\n\n".join(chunk_lines)
+
     return f"""
     You are an AI assistant that answers questions based only on the provided book content.
     Your responses must be grounded in the book content provided in the context.
+
+    If the context provided includes information about what the student is currently viewing (URL, title, or headings),
+    prioritize answering using information related to that page while still remaining grounded in the provided chunks.
+
     If the question cannot be answered based on the provided context, politely explain that you don't have the relevant information.
     Do not make up information or go beyond what is provided in the context.
-    
+
     ### BOOK CONTENT CONTEXT:
     {chunks_text}
     """
 
 
-# Initialize the main BookKnowledgeAgent using openai-agents==0.6 as per specification
+# Main BookKnowledgeAgent — routes through OpenRouter (or configured provider)
 book_knowledge_agent = Agent(
     name="BookKnowledgeAgent",
     instructions=book_knowledge_instructions,
     model=OpenAIChatCompletionsModel(
-        model="gemini-3.5-flash",
-        openai_client=AsyncOpenAI(
-            api_key=Config.GEMINI_API_KEY,
-            base_url="https://generativelanguage.googleapis.com/v1beta/"
-        )
+        model=Config.LLM_MODEL,
+        openai_client=_build_openai_client(),
     ),
     model_settings=ModelSettings(
         max_tokens=1000,
@@ -84,15 +108,3 @@ book_knowledge_agent = Agent(
     ),
     input_guardrails=[check_query_relevance]
 )
-
-
-async def initialize_agent():
-    """
-    Initialize the agents with necessary configurations.
-    This follows the official OpenAI Agents SDK v0.6 documentation.
-    """
-    # Basic validation to ensure the API key is set
-    if not Config.GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY environment variable is required")
-
-    logger.info("Agents initialized successfully with openai-agents v0.6")

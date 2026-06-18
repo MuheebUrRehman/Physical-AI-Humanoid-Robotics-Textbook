@@ -1,0 +1,157 @@
+.widgetContainer {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  font-family: var(--ifm-font-family-base);
+}
+
+.toggleButton {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  z-index: 1001;
+}
+
+.toggleButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+}
+
+.selectionButton {
+  position: absolute;
+  z-index: 2000;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chatWindow {
+  position: fixed;
+  bottom: calc(2rem + 80px);
+  right: 2rem;
+  width: 420px;
+  height: min(600px, calc(100vh - 140px));
+  background: var(--ifm-background-surface-color);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.12),
+    0 12px 24px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.chatWindow[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.chatWindow[data-visible="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: all;
+}
+
+.chatHeader {
+  padding: 1rem;
+  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  color: white;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.errorBanner {
+  background: #dc2626;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.errorDismiss {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+  opacity: 0.8;
+}
+
+.errorDismiss:hover {
+  opacity: 1;
+}
+
+.chatBody {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--ifm-background-color);
+  min-height: 0;
+}
+
+:global(.openai-chatkit) {
+  height: 100%;
+}
+
+@media (max-width: 600px) {
+  .widgetContainer {
+    bottom: 1rem;
+    right: 1rem;
+  }
+
+  .chatWindow {
+    position: fixed;
+    bottom: calc(1rem + 70px);
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+    height: min(500px, calc(100vh - 120px));
+  }
+
+  .toggleButton {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+  }
+}
+
+

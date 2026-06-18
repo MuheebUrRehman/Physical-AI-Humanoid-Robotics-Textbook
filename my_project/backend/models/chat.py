@@ -50,12 +50,27 @@ class HealthCheckResponse(BaseModel):
     timestamp: str = Field(..., description="Timestamp of the health check")
 
 
+class PageContext(BaseModel):
+    """Page context information from the frontend."""
+    url: str
+    title: str
+    headings: List[str] = Field(default_factory=list)
+
+
+class RequestContext(BaseModel):
+    """Context for a ChatKit request with user isolation."""
+    user_id: str
+    page_context: Optional[PageContext] = None
+    metadata: dict = Field(default_factory=dict)
+
+
 class ChatKitSessionRequest(BaseModel):
     """Request model for ChatKit session creation."""
-    pass
+    user_id: str = Field(..., description="User ID for session initialization")
 
 
 class ChatKitSessionResponse(BaseModel):
     """Response model for ChatKit session creation."""
     client_secret: str = Field(..., description="Client secret for ChatKit session")
     thread_id: Optional[str] = Field(None, description="Thread ID for the conversation")
+    user_id: str = Field(..., description="User ID associated with the session")

@@ -14,7 +14,23 @@ class Config:
     COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
     QDRANT_API_KEY: str = os.getenv("QDRANT_API_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_31_LITE_MODEL: str = os.getenv("GEMINI_31_LITE_MODEL", "gemini-3.1-flash-lite")
+
+    # LLM Provider (OpenRouter with Gemini fallback)
+    # Priority: LLM_API_KEY → OPENROUTER_API_KEY → GEMINI_API_KEY
+    LLM_API_KEY: str = (
+        os.getenv("LLM_API_KEY")
+        or os.getenv("OPENROUTER_API_KEY")
+        or os.getenv("GEMINI_API_KEY", "")
+    )
+    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "qwen/qwen3-coder")
+
+    # OpenRouter identity headers
+    LLM_SITE_URL: str = os.getenv(
+        "LLM_SITE_URL",
+        "https://physical-ai-humanoid-robotics-textbook.vercel.app",
+    )
+    LLM_APP_NAME: str = os.getenv("LLM_APP_NAME", "Physical AI Textbook")
 
     # Qdrant Configuration
     QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
@@ -34,7 +50,10 @@ class Config:
             raise ValueError("COHERE_API_KEY environment variable is required")
         if not cls.QDRANT_API_KEY:
             raise ValueError("QDRANT_API_KEY environment variable is required")
-        if not cls.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
+        if not cls.LLM_API_KEY:
+            raise ValueError(
+                "LLM_API_KEY (or OPENROUTER_API_KEY / GEMINI_API_KEY) "
+                "environment variable is required"
+            )
         if not cls.QDRANT_HOST:
             raise ValueError("QDRANT_HOST environment variable is required")

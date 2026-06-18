@@ -4,6 +4,7 @@ import sys
 import time
 import json
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, AsyncGenerator
 
@@ -18,6 +19,12 @@ from pydantic import BaseModel
 import secrets
 from retrieval import get_relevant_chunks
 from agent import book_knowledge_agent, Runner
+from chatkit_server import initialize_chatkit_server
+from models.chat import (
+    ChatRequest, ChatResponse, ErrorResponse, HealthCheckResponse, 
+    SSEMessage, AgentResponse, ChatKitSessionRequest, ChatKitSessionResponse,
+    RequestContext, PageContext
+)
 
 # Configure logging
 logging.basicConfig(
@@ -39,11 +46,24 @@ allowed_origins = [
     if origin.strip()
 ]
 
+# Global ChatKit Server instance
+chatkit_server = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global chatkit_server
+    chatkit_server = await initialize_chatkit_server()
+    logger.info("ChatKitServer initialized successfully")
+    yield
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="RAG Chatbot Backend",
     description="A Retrieval-Augmented Generation chatbot for technical book content",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -54,6 +74,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
 
 # Validate configuration on startup
 try:
@@ -95,10 +117,14 @@ async def health_check():
     )
 
 
-async def chat_stream_generator(request: ChatRequest, relevant_chunks: list[str]) -> AsyncGenerator[str, None]:
+async def chat_stream_generator(request: ChatRequest) -> AsyncGenerator[str, None]:
     """Generator for SSE events from the agent stream."""
     tokens_yielded = 0
     try:
+        # Retrieve relevant chunks from vector store using the sanitized query inside the stream
+        logger.info(f"Retrieving relevant chunks for query: {request.query[:50]}...")
+        relevant_chunks = await get_relevant_chunks(request.query)
+
         logger.info(f"Starting agent stream for query: {request.query[:50]}...")
         
         # Start streaming from the agent
@@ -117,11 +143,11 @@ async def chat_stream_generator(request: ChatRequest, relevant_chunks: list[str]
             if event.type == "raw_response_event":
                 data = event.data
                 
-                # IMPORTANT: Filter out tokens that might come from the judge agent
-                # The BookKnowledgeAgent uses gemini-3.5-flash
-                # The JudgeAgent uses gemini-3.1-flash-lite
-                model = getattr(getattr(data, "response", None), "model", "")
-                if "3.1" in str(model):
+                # Filter out events that belong to the guardrail (judge) agent.
+                # In openai-agents v0.6, guardrails execute before streaming, so
+                # these shouldn't appear. Belt-and-suspenders check via agent name.
+                agent_name = getattr(getattr(data, "response", None), "name", "")
+                if agent_name == "Judge":
                     continue
 
                 delta = getattr(data, "delta", None)
@@ -142,10 +168,11 @@ async def chat_stream_generator(request: ChatRequest, relevant_chunks: list[str]
                         if isinstance(final_output, AgentResponse):
                             message = SSEMessage(type="final", content=final_output)
                         else:
+                            citations = [c["source"] for c in relevant_chunks if isinstance(c, dict) and c.get("source")]
                             message = SSEMessage(type="final", content=AgentResponse(
                                 answer=str(final_output),
                                 confidence=0.85,
-                                citations=[]
+                                citations=citations
                             ))
                         yield f"data: {message.model_dump_json()}\n\n"
                         tokens_yielded += 1
@@ -180,16 +207,12 @@ async def chat_endpoint(request: ChatRequest):
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_msg)
 
-        # Retrieve relevant chunks from vector store using the sanitized query
-        logger.info(f"Retrieving relevant chunks for query: {sanitized_query[:50]}...")
-        relevant_chunks = await get_relevant_chunks(sanitized_query)
-
         # Create a new request object with the sanitized query for the stream generator
         sanitized_request = request.model_copy(update={"query": sanitized_query})
 
         # Return the streaming response
         return StreamingResponse(
-            chat_stream_generator(sanitized_request, relevant_chunks),
+            chat_stream_generator(sanitized_request),
             media_type="text/event-stream"
         )
 
@@ -201,6 +224,103 @@ async def chat_endpoint(request: ChatRequest):
             status_code=500,
             detail=f"An error occurred while setting up the stream: {str(e)}"
         )
+
+
+@app.post("/api/chatkit/session", response_model=ChatKitSessionResponse)
+async def chatkit_session(request: ChatKitSessionRequest):
+    """
+    Creates a new ChatKit session and returns a client secret.
+    """
+    try:
+        # Create a new persistent thread for the student
+        thread = await chatkit_server.store.create_thread(
+            user_id=request.user_id,
+            metadata={"source": "textbook_web"}
+        )
+        
+        # Generate a stateless client secret
+        client_secret = f"sk_{secrets.token_urlsafe(32)}"
+        
+        return ChatKitSessionResponse(
+            client_secret=client_secret,
+            thread_id=thread.id,
+            user_id=request.user_id
+        )
+    except Exception as e:
+        logger.error(f"Error creating ChatKit session: {e}")
+        raise HTTPException(status_code=500, detail="Could not initialize session")
+
+
+@app.post("/api/chatkit/refresh", response_model=ChatKitSessionResponse)
+async def chatkit_refresh(request: Request):
+    """
+    Refreshes an existing ChatKit session token.
+    """
+    # Simple refresh logic for development
+    user_id = request.headers.get("X-User-ID", "anonymous_student")
+    new_secret = f"sk_{secrets.token_urlsafe(32)}"
+    return ChatKitSessionResponse(
+        client_secret=new_secret,
+        user_id=user_id
+    )
+
+
+@app.get("/api/chatkit/user")
+async def chatkit_user(request: Request):
+    """
+    Returns metadata about the current student.
+    """
+    user_id = request.headers.get("X-User-ID", "anonymous_student")
+    return {"user_id": user_id, "name": "Physical AI Student"}
+
+
+@app.post("/chatkit")
+async def chatkit_protocol(request: Request):
+    """
+    The main SSE endpoint for the OpenAI ChatKit protocol.
+    """
+    user_id = request.headers.get("X-User-ID", "anonymous_student")
+    
+    # Read raw body first (need it for the process() call)
+    raw_body = await request.body()
+    
+    # Extract pageContext from request body if present
+    page_context = None
+    try:
+        body_json = json.loads(raw_body)
+        if isinstance(body_json, dict):
+            params = body_json.get("params", {})
+            input_data = params.get("input", {})
+            metadata = input_data.get("metadata", {})
+            pc_data = metadata.get("pageContext")
+            if pc_data and isinstance(pc_data, dict):
+                headings = pc_data.get("headings", [])
+                if isinstance(headings, str):
+                    headings = [headings]
+                page_context = PageContext(
+                    url=pc_data.get("url", ""),
+                    title=pc_data.get("title", ""),
+                    headings=headings
+                )
+    except Exception as e:
+        logger.warning(f"Could not parse pageContext from request body: {e}")
+    
+    # Initialize request context
+    ctx = RequestContext(user_id=user_id, page_context=page_context)
+    
+    # Process using the ChatKitServer.process method
+    from chatkit.server import StreamingResult, NonStreamingResult
+    result = await chatkit_server.process(raw_body, context=ctx)
+    
+    if isinstance(result, StreamingResult):
+        # Return SSE streaming response (bytes already include SSE framing)
+        return StreamingResponse(result, media_type="text/event-stream")
+    elif isinstance(result, NonStreamingResult):
+        # Return JSON response
+        return JSONResponse(content=json.loads(result.json))
+    else:
+        logger.error(f"Unexpected result type from ChatKitServer.process: {type(result)}")
+        raise HTTPException(status_code=500, detail="Unexpected response from ChatKit server")
 
 
 if __name__ == "__main__":
