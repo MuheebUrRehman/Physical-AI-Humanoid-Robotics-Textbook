@@ -13,7 +13,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://physical-ai-humanoid-robotics-textbook.vercel.app',
+  url: 'https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app',
   baseUrl: '/',
 
   organizationName: 'panaversity',

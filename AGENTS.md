@@ -80,7 +80,7 @@ Template at `.specify/templates/phr-template.prompt.md`. Must fill all YAML plac
 ## Deployment
 
 - **Backend**: GitHub Actions → Hugging Face Spaces. Pushes `my_project/backend/` files (app.py, agent.py, config.py, retrieval.py, models/, utils/, pyproject.toml, uv.lock, Dockerfile) to HF Space repo.
-- **Frontend**: Deployed to Vercel (URL in docusaurus config: `physical-ai-humanoid-robotics-textbook.vercel.app`). Not automated in this repo's CI.
+- **Frontend**: Deployed to Vercel (URL in docusaurus config: `physical-ai-humanoid-robotics-textb-three-alpha.vercel.app`). Not automated in this repo's CI.
 - **CORS**: Configured via `ALLOWED_ORIGINS` env var. No trailing slashes allowed.
 
 ## Known constraints

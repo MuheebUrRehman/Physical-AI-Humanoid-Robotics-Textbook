@@ -28,7 +28,7 @@ class Config:
     # OpenRouter identity headers
     LLM_SITE_URL: str = os.getenv(
         "LLM_SITE_URL",
-        "https://physical-ai-humanoid-robotics-textbook.vercel.app",
+        "https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app",
     )
     LLM_APP_NAME: str = os.getenv("LLM_APP_NAME", "Physical AI Textbook")
 
