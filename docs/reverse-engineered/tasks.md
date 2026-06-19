@@ -1,13 +1,13 @@
 # Physical AI & Humanoid Robotics Textbook — Implementation Tasks
 
-**Version**: 2.0 (Reverse Engineered)
-**Date**: 2026-06-18
+**Version**: 3.0 (Reverse Engineered)
+**Date**: 2026-06-19
 
 ## Overview
 
 This task breakdown represents how to rebuild the system from scratch using the specification and plan.
 
-**Estimated Timeline**: 6 weeks (senior full-stack engineer)
+**Estimated Timeline**: 7 weeks (senior full-stack engineer)
 **Team Size**: 1 full-stack developer
 
 ---
@@ -19,47 +19,64 @@ This task breakdown represents how to rebuild the system from scratch using the 
 
 ### Task 1.1: Monorepo Project Setup
 - [ ] Create root directory structure: `my_project/backend/`, `my_project/frontend/`, `my_project/ingestion/`
-- [ ] Backend: Initialize `pyproject.toml` with FastAPI, openai-agents, openai-chatkit, cohere, qdrant-client, aiosqlite, python-dotenv
+- [ ] Backend: Initialize `pyproject.toml` with FastAPI, openai-agents>=0.17.5, openai-chatkit>=1.6.5, cohere>=7.0.4, qdrant-client>=1.18.0, aiosqlite>=0.22.1, python-dotenv>=1.2.2
 - [ ] Backend: Run `uv lock` to generate `uv.lock`
-- [ ] Frontend: Initialize with `npm create docusaurus@latest`, add @openai/chatkit-react, raw-loader
+- [ ] Backend: Create `.python-version` file with `3.13`
+- [ ] Frontend: Initialize with `npm create docusaurus@latest`, add @openai/chatkit-react@^1.4.0, raw-loader@^4.0.2
 - [ ] Frontend: Run `npm install`
+- [ ] Ingestion: Initialize `pyproject.toml` with python-dotenv>=1.2.2, cohere>=7.0.4, qdrant-client>=1.18.0, tiktoken>=0.9.0
+- [ ] Ingestion: Run `uv lock` to generate `uv.lock`
 - [ ] Create `.gitignore` with Python, Node.js, build output, env, and database patterns
 - [ ] Create `.env.example` with all required env vars (documented placeholders)
 - [ ] Create `AGENTS.md` with project anatomy, commands, entry points, and quirks
-- [ ] **Verify**: `uv sync --frozen` resolves; `npm install` completes
+- [ ] **Verify**: `uv sync --frozen` resolves for both backend and ingestion; `npm install` completes
 
 ### Task 1.2: Backend Configuration System
-- [ ] Implement `config.py`:
-  - `load_dotenv()` at module level
-  - `Config` class with class-level fields for all env vars
-  - Priority chain: `LLM_API_KEY` → `OPENROUTER_API_KEY` → `GEMINI_API_KEY`
-  - `Config.validate()` classmethod that raises `ValueError` on missing required keys
-- [ ] Support env vars: `COHERE_API_KEY`, `QDRANT_API_KEY`, `QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_COLLECTION_NAME`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_SITE_URL`, `LLM_APP_NAME`, `TOP_K`, `QUERY_TIMEOUT`, `STREAMING_ENABLED`, `ALLOWED_ORIGINS`
+- [ ] Implement `config.py` with `load_dotenv()` at module level, trying both `my_project/backend/.env` and `my_project/.env`
+- [ ] `Config` class with class-level fields for: `COHERE_API_KEY`, `QDRANT_API_KEY`, `QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_COLLECTION_NAME`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_SITE_URL`, `LLM_APP_NAME`, `TOP_K`, `RELEVANCE_THRESHOLD`, `QUERY_TIMEOUT`, `ALLOWED_ORIGINS`
+- [ ] LLM key fallback chain: `LLM_API_KEY` -> `OPENROUTER_API_KEY` -> `GEMINI_API_KEY`
+- [ ] Defaults: `QDRANT_HOST=localhost`, `QDRANT_PORT=6333`, `QDRANT_COLLECTION_NAME=book_vectors`, `LLM_BASE_URL=https://openrouter.ai/api/v1`, `LLM_MODEL=qwen/qwen3-coder`, `TOP_K=3`, `RELEVANCE_THRESHOLD=0.0`, `QUERY_TIMEOUT=30`
+- [ ] `Config.validate()` classmethod that raises `ValueError` on missing required keys: `COHERE_API_KEY`, `QDRANT_API_KEY`, `LLM_API_KEY`, `QDRANT_HOST`
 - [ ] **Verify**: `Config.validate()` raises when keys missing; passes when present
 
 ### Task 1.3: Backend Docker Setup
-- [ ] Write `Dockerfile`:
-  - Base: `python:3.13-alpine`
-  - Install uv via pip
-  - Copy `pyproject.toml`, `uv.lock` → `uv sync --frozen --no-group dev`
-  - Copy all `.py` files, `models/`, `utils/`, `scripts/`
-  - Expose port 7860
-  - CMD: `uv run uvicorn app:app --host 0.0.0.0 --port 7860`
+- [ ] Write `Dockerfile` using `python:3.13-alpine`
+- [ ] Install uv via pip
+- [ ] Copy `pyproject.toml`, `uv.lock` -> `uv sync --frozen --no-group dev`
+- [ ] Copy all `.py` files, `models/`, `utils/`, `scripts/`
+- [ ] Expose port 7860
+- [ ] CMD: `uv run uvicorn app:app --host 0.0.0.0 --port 7860`
 - [ ] **Verify**: `docker build .` succeeds; container starts and responds on port 7860
 
 ### Task 1.4: Frontend Docusaurus Scaffold
 - [ ] Configure `docusaurus.config.ts`:
-  - Title: "Physical AI & Humanoid Robotics"
-  - Tagline: "A Comprehensive Guide to Embodied Intelligence"
-  - URL: Vercel production URL
-  - Dark mode default with system preference respect
-  - Navbar: "Tutorial" sidebar link + "GitHub" link
-  - Footer: "Docs" + "Community" sections (GitHub link)
-  - Plugins: raw-loader (.py, .cs, .world), webpack-dev-server-proxy (/chatkit → localhost:8000)
+  - Title: "Physical AI & Humanoid Robotics", Tagline: "A Comprehensive Guide to Embodied Intelligence"
+  - URL: Vercel production URL, `future: { v4: true }`
   - Custom CSS: `src/css/custom.css`
-  - Stylesheets: Inter font from Google Fonts
-- [ ] Create `sidebars.ts` with autogenerated sidebar from `docs/`
-- [ ] **Verify**: `npm run typecheck` passes; `npm run build` produces `build/`
+  - Custom fields: `apiBaseUrl` (defaults to `http://localhost:8000`), `chatkitDomainKey` (defaults to `physical-ai-textbook-local`)
+  - Preset classic with docs sidebar from `sidebars.ts`
+  - Plugins: raw-loader for `.py`, `.cs`, `.world`; webpack-dev-server proxy for `/chatkit` and `/api/chatkit` -> backend
+  - Scripts: load `chatkit.js` from OpenAI CDN (`https://cdn.platform.openai.com/deployments/chatkit/chatkit.js`)
+  - Navbar: "Tutorial" sidebar link + "GitHub" link
+  - Footer: "Getting Started" + GitHub link
+  - Prism themes: `github` (light), `dracula` (dark)
+  - Inter font from Google Fonts
+- [ ] Create `sidebars.ts` with `autogenerated` from `docs/` directory
+- [ ] Create `tsconfig.json` extending `@docusaurus/tsconfig` with `baseUrl: "."`
+- [ ] Create `vercel.json` with `buildCommand: "npm run build"`, `outputDirectory: "build"`, API rewrite rules
+- [ ] **Verify**: `npm run typecheck` passes; `npm run build` produces `build/` directory
+
+### Task 1.5: Documentation Content Scaffold
+- [ ] Create 7 MDX files in `docs/`:
+  - `glossary.mdx` (key terms A-Z)
+  - `module1/chapter1.mdx` (Foundations of Physical AI)
+  - `module1/chapter2.mdx` (ROS 2, The Robotic Nervous System)
+  - `module2/chapter3.mdx` (Gazebo, Your First Digital Twin)
+  - `module2/chapter4.mdx` (Unity, High-Fidelity Simulation)
+  - `module3/chapter5.mdx` (Isaac Sim, Isaac ROS, VSLAM, Navigation)
+  - `module4/chapter6.mdx` (Voice-to-Action, LLM Planning & Capstone)
+- [ ] Add code example files in `code/` directory (URDF, ROS2, Python scripts)
+- [ ] **Verify**: `npm run build` succeeds with all MDX files rendered
 
 ---
 
@@ -69,318 +86,370 @@ This task breakdown represents how to rebuild the system from scratch using the 
 **Dependencies**: Phase 1 complete
 
 ### Task 2.1: SQLite Store for ChatKit
-- [ ] Implement `store.py`:
-  - `SQLiteStore(Store[Any])` with constructor taking `db_path`
-  - `_ensure_initialized()`: create `threads`, `items`, `attachments` tables (idempotent)
+- [ ] Implement `store.py` with `SQLiteStore(Store[Any])`:
+  - Constructor takes `db_path` parameter
+  - `_ensure_initialized()`: CREATE TABLE IF NOT EXISTS for `threads` (id, metadata, created_at), `items` (id, thread_id, item_data, created_at), `attachments` (id, attachment_data)
   - `initialize()`: public alias for `_ensure_initialized`
-  - `load_thread()`: SELECT from threads by id; raise NotFoundError if missing
-  - `create_thread()`: generate UUID thread, ActiveStatus, save, return
+  - `load_thread()`: SELECT from threads by id; raise `NotFoundError` if missing
+  - `create_thread()`: generate UUID thread, `ActiveStatus`, save, return `Thread`
   - `save_thread()`: INSERT OR REPLACE into threads
-  - `load_thread_items()`: SELECT from items by thread_id, memory-based pagination with `after` cursor
+  - `load_thread_items()`: SELECT from items by thread_id, memory-based pagination with `after_id` cursor
   - `add_thread_item()`: INSERT into items with UUID + timestamp
   - `save_item()`: INSERT OR REPLACE into items
-  - `load_item()`: SELECT by item_id + thread_id; raise NotFoundError if missing
-  - `delete_thread()`: DELETE from threads + items by thread_id
+  - `load_item()`: SELECT by item_id + thread_id; raise `NotFoundError` if missing
+  - `delete_thread()`: DELETE from threads + items by thread_id (cascading)
   - `delete_thread_item()`: DELETE from items by item_id + thread_id
   - `save_attachment()`: INSERT OR REPLACE into attachments
-  - `load_attachment()`: SELECT by id; raise NotFoundError if missing
+  - `load_attachment()`: SELECT by id; raise `NotFoundError` if missing
   - `delete_attachment()`: DELETE from attachments by id
-  - `load_threads()`: SELECT all threads, memory-based pagination
+  - `load_threads()`: SELECT all threads, memory-based pagination with `has_more` flag
   - All public methods call `await self._ensure_initialized()` first
-- [ ] **Verify**: Write unit test that creates store, creates thread, loads thread, creates item, loads items, deletes thread — all succeed
+  - Use `TypeAdapter(ThreadItem)` for discriminated union deserialization
+- [ ] Write tests (7 tests): initialize, create+load thread, not found errors, cascade delete, pagination, idempotency
+- [ ] **Verify**: `uv run pytest tests/test_store.py -v` passes all 7 tests
 
 ### Task 2.2: Pydantic Models
-- [ ] Implement `models/chat.py`:
-  - `ChatRequest`: query (1-2000 chars), user_id, session_id
-  - `AgentResponse`: answer, confidence (0.0-1.0), citations (string list)
-  - `SSEMessage`: type ("token" | "final" | "error"), content (str | AgentResponse)
-  - `ChatResponse`: response, source_chunks, confidence, query_id
-  - `ErrorResponse`: error, error_code, query_id
-  - `HealthCheckResponse`: status, version, timestamp
-  - `PageContext`: url, title, headings
-  - `RequestContext`: user_id, page_context (optional), metadata
-  - `ChatKitSessionRequest`: user_id
-  - `ChatKitSessionResponse`: client_secret, thread_id, user_id
-- [ ] **Verify**: All models instantiate with valid data; validation rejects invalid data
+- [ ] Implement `models/chat.py` with Pydantic BaseModel schemas:
+  - `ChatRequest`: query (str, min_length=1, max_length=2000), user_id (str), session_id (str)
+  - `AgentResponse`: answer (str), confidence (float, ge=0.0, le=1.0), citations (list[str])
+  - `SSEMessage`: type (Literal["token", "final", "error"]), content (str | AgentResponse)
+  - `ErrorResponse`: error (str), error_code (str), query_id (str, optional)
+  - `HealthCheckResponse`: status (str), version (str), timestamp (str)
+  - `PageContext`: url (str), title (str), headings (list[str])
+  - `RequestContext`: user_id (str), page_context (PageContext, optional), metadata (dict)
+  - `ChatKitSessionRequest`: user_id (str)
+  - `ChatKitSessionResponse`: client_secret (str), thread_id (str), user_id (str)
+- [ ] Write tests (25 tests across 9 test classes): valid/invalid/edge cases for each model
+- [ ] **Verify**: `uv run pytest tests/test_models.py -v` passes all 25 tests
 
 ### Task 2.3: MDX Ingestion Pipeline
-- [ ] Implement `ingest_book.py`:
-  - CLI parser with args: `--docs-dir`, `--chunk-size`, `--chunk-overlap`, `--qdrant-host`, `--qdrant-port`, `--cohere-model`, `--collection-name`, `--batch-size`, `--verbose`
-  - `load_config()`: read env vars with defaults
-  - `validate_input_parameters()`: type checks, range checks, regex patterns
-  - `setup_logging()`: file + stdout handlers
-  - `setup_cohere_client()`: init with API key, error handling
-  - `setup_qdrant_client()`: init with host/port/api_key, protocol strip
-  - `scan_mdx_files()` / `get_all_mdx_files()`: recursive .mdx walk with path validation
-  - `validate_file_path()`: prevent directory traversal
-  - `read_mdx_file()`: size limit (50MB), encoding fallback, error handling
-  - `convert_mdx_to_text()`: strip JSX, imports, code blocks, Markdown syntax, links (keep text), headers markers, list markers
-  - `chunk_text()`: character-based with configurable size + overlap
-  - `VectorRecord` class: id, vector, content, source_file, module, chapter, chunk_index, created_at; `to_payload()`, `to_qdrant_point()`, `from_text_chunk()`
-  - `prepare_chunks_for_embedding()`: create VectorRecords
+- [ ] Implement `ingest_book.py` (1195 lines):
+  - CLI parser with `argparse`: `--docs-dir`, `--chunk-size` (default 512), `--chunk-overlap` (default 50), `--qdrant-host`, `--qdrant-port`, `--cohere-model` (default embedding-multilingual-v3.0), `--collection-name`, `--batch-size` (default 100), `--verbose`
+  - `load_config()`: read env vars with defaults for Cohere API key, Qdrant host/port/docs dir
+  - `setup_logging()`: file + stdout handlers with timestamps
+  - `setup_cohere_client()`: init `cohere.AsyncClientV2` with API key, error handling
+  - `setup_qdrant_client()`: init `AsyncQdrantClient` with host/port/api_key, protocol stripping
+  - `extract_module_and_chapter_from_path()`: parse `docs/module1/chapter1.mdx` -> `(module1, chapter1)`
+  - `validate_file_path()`: prevent directory traversal via `os.path.normpath` + `os.path.commonpath`
+  - `get_all_mdx_files()`: recursive `os.walk` for `.mdx` files
+  - `read_mdx_file()`: size limit check (50MB default), encoding fallback (UTF-8 -> latin-1), error handling
+  - `process_large_mdx_file()`: read in 8KB chunks for oversized files
+  - `convert_mdx_to_text()`: strip JSX tags, import/export statements, code blocks, inline code, markdown links (keep alt text), image alt text, headers, bold/italic, list markers; normalize whitespace
+  - `chunk_text()`: **token-aware** using `tiktoken cl100k_base`. Split on paragraph boundaries first, then sentence boundaries for oversized paragraphs. Configurable token overlap. Helper `find_sentence_boundary()` for clean cuts.
+  - `VectorRecord` class: id (str), vector (list[float]), content (str), source_file (str), module (str), chapter (str), chunk_index (int), created_at (str). Methods: `to_payload()`, `to_qdrant_point()`, `from_text_chunk()` factory
+  - `prepare_chunks_for_embedding()`: create VectorRecords from text chunks
   - `embed_text_chunks()`: batch embed via Cohere with retry
-  - `create_qdrant_collection()`: recreate with vector size 1024, cosine distance
-  - `store_vectors_in_qdrant()`: batch upsert (100 per batch), retry
-  - `verify_stored_vectors()`: sample and validate payload fields
-  - `main()`: orchestrate all steps with progress tracking
-- [ ] **Verify**: Run `python ingest_book.py --docs-dir=./my_project/frontend/docs` — all files processed, vectors stored, verification passes
+  - `handle_api_call_with_retry()`: generic retry wrapper (max_retries=3, exponential backoff 1s/2s/4s)
+  - `safe_embed_chunks()` / `safe_store_vectors_in_qdrant()` : safe wrappers using retry mechanism
+  - `create_qdrant_collection()`: skip if exists, else recreate with size=1024, distance=Cosine
+  - `batch_store_vectors_in_qdrant()`: batch upsert (100 per batch), retry
+  - `verify_stored_vectors()`: scroll sample points, check expected metadata fields
+  - `validate_all_files_processed()`: ensure all original MDX files have at least one vector
+  - `track_performance()`: elapsed/estimated/remaining time with warning if >10min total
+  - `main()`: orchestrate all steps with `ProgressTracker`
+- [ ] **Verify**: `uv run python ingest_book.py --docs-dir=../frontend/docs` processes all files, stores vectors, verification passes
 
-### Task 2.4: Ingestion Unit Tests
-- [ ] `test_ingest_book.py`:
-  - Test `extract_module_and_chapter_from_path()` with various paths
-  - Test `convert_mdx_to_text()` strips JSX, preserves text content
-  - Test `chunk_text()` produces correct chunk count with overlap
-  - Test `validate_file_path()` blocks traversal, allows valid paths
-  - Test `validate_input_parameters()` rejects invalid values
-  - Test `read_mdx_file()` handles missing file, permission error
-- [ ] **Verify**: `python -m unittest test_ingest_book.py` passes
+### Task 2.4: Ingestion Tests
+- [ ] Write `tests/conftest.py`: setup `sys.path`, default env vars, `temp_docs_dir` fixture
+- [ ] Write `test_chunking.py` (9 tests): empty text, single paragraph, multi-paragraph split, sentence boundary, overlap safety, overlap preserves text, single sentence, no split when under limit, no mid-sentence split
+- [ ] Write `test_cli_validation.py` (8 tests): parser created, defaults, valid args, negative chunk_size, negative overlap, overlap >= chunk_size, invalid port, empty collection_name
+- [ ] Write `test_e2e.py` (1 test): create temp MDX files, run full pipeline, validate all processed
+- [ ] Write `test_embedding.py` (5 tests): prepare records, empty chunks, embed records, empty records, embedding failure
+- [ ] Write `test_file_operations.py` (8 tests): read valid, file not found, oversized, binary fallback, find mdx files, ignore non-mdx, scan valid, scan nonexistent
+- [ ] Write `test_main_pipeline.py` (4 tests): process file, nonexistent file, performance tracking, config defaults
+- [ ] Write `test_mdx_conversion.py` (10 tests): basic, code blocks, JSX, links, images, empty, imports/exports, bullet lists, numbered lists, headers
+- [ ] Write `test_path_utils.py` (12 tests): normal path, glossary, dot prefix, Windows separators, no docs/, single segment, valid path, traversal, outside base, URL-encoded traversal, identical path, nonexistent base
+- [ ] Write `test_progress_tracker.py` (4 tests): initial state, update increment, multiple updates, complete
+- [ ] Write `test_qdrant_operations.py` (10 tests): collection created, already exists, empty records, store records, verification success, no vectors, missing fields, all processed, missing file, not enough vectors
+- [ ] Write `test_retry_utils.py` (3 tests): succeeds first attempt, succeeds after retry, fails all retries
+- [ ] Write `test_vector_record.py` (5 tests): creation, to_payload, to_qdrant_point, from_text_chunk, from_text_chunk with embedding
+- [ ] **Verify**: `uv run pytest tests/ -v` passes all 79 tests
 
 ---
 
 ## Phase 3: AI Agent Layer
 
-**Timeline**: Week 3
+**Timeline**: Week 3-4
 **Dependencies**: Phase 2 complete
 
 ### Task 3.1: OpenAI Client Factory
 - [ ] Implement `_build_openai_client()` in `agent.py`:
   - Create `AsyncOpenAI` with `Config.LLM_API_KEY`, `Config.LLM_BASE_URL`
   - Set `default_headers`: `HTTP-Referer` (from `Config.LLM_SITE_URL`), `X-Title` (from `Config.LLM_APP_NAME`)
+- [ ] Use `OpenAIChatCompletionsModel` from agents SDK, not raw OpenAI client
 - [ ] **Verify**: Client authenticates against OpenRouter with valid API key
 
 ### Task 3.2: Judge Agent (Guardrail)
 - [ ] Implement `judge_agent`:
-  - `Agent(name="Judge")` with instruction: "Determine if the input is related to physical AI, robotics, or technical topics. Respond with 'yes' or 'no'."
+  - `Agent(name="Judge")` with instruction: "Analyze the user input and determine if it relates to physical AI, robotics, or technical topics. Respond with only 'yes' or 'no'."
   - Model: `OpenAIChatCompletionsModel` with `Config.LLM_MODEL`
 - [ ] Implement `check_query_relevance()` guardrail:
   - `@input_guardrail` decorator
-  - Run `judge_agent` on input text
-  - `tripwire_triggered = not is_relevant` (check 'yes' in response)
+  - Run `judge_agent` on input text via `Runner.run()`
+  - `tripwire_triggered = not is_relevant` (check for 'yes' in response)
   - On exception: log error, return `tripwire_triggered=False` (fail open)
-- [ ] **Verify**: "What is ROS 2?" → tripwire_triggered=False; "Best pizza topping" → tripwire_triggered=True
+- [ ] Write tests (3 tests): relevant query passes, irrelevant query blocked, guardrail fails open on error
+- [ ] **Verify**: `uv run pytest tests/test_guardrail.py -v` passes all 3 tests
 
 ### Task 3.3: Book Knowledge Agent
-- [ ] Implement `book_knowledge_instructions()`:
-  - Read `ctx.context["book_chunks"]`
-  - Format each chunk with label + optional `[from source]` suffix
-  - Inject into system prompt that grounds answers in provided content
+- [ ] Implement `book_knowledge_instructions()` function:
+  - Signature: `(ctx: RunContextWrapper, agent: Agent) -> str`
+  - Read `ctx.context["book_chunks"]` (list of dicts with text, source, module, chapter, score)
+  - Format each chunk with label, source, and relevance score
+  - Inject into system prompt: "You must answer based ONLY on this content"
+  - Include grounding policy: "If you cannot find this in the textbook, say so"
 - [ ] Implement `book_knowledge_agent`:
   - `Agent(name="BookKnowledgeAgent")`
-  - `instructions=book_knowledge_instructions` (dynamic function)
-  - `model_settings=ModelSettings(max_tokens=1000, temperature=0.3)`
+  - `instructions=book_knowledge_instructions` (function reference, not string)
+  - `model_settings=ModelSettings(max_tokens=500, temperature=0.2)`
   - `input_guardrails=[check_query_relevance]`
-- [ ] **Verify**: Agent responds with content grounded in provided chunks; ignores chunks from other topics
+- [ ] Write tests (5 tests): instructions include chunks, string fallback, empty chunks, scores formatted, grounding policy present
+- [ ] **Verify**: `uv run pytest tests/test_agent_instructions.py -v` passes all 5 tests
 
 ### Task 3.4: Vector Search (Retrieval)
 - [ ] Implement `retrieval.py`:
-  - Initialize `cohere.AsyncClientV2` with `Config.COHERE_API_KEY`
-  - Initialize `AsyncQdrantClient` with `Config.QDRANT_HOST`, `QDRANT_API_KEY`, `QDRANT_PORT`, `QUERY_TIMEOUT`
-  - `get_relevant_chunks(query, max_retries=3)`:
+  - Initialize `cohere.AsyncClientV2` with `Config.COHERE_API_KEY` at module level
+  - Initialize `AsyncQdrantClient` with `Config.QDRANT_HOST`, `QDRANT_API_KEY`, `QDRANT_PORT`
+  - In-memory embedding cache `_embed_cache: dict[str, tuple[float, list[float]]]` with 300s TTL
+  - `embed_query(query, max_retries=3)`:
+    - Check cache first; return cached if within TTL
     - Cohere v2 embed with `model="embed-multilingual-v3.0"`, `input_type="search_query"`
+    - Cache result; exponential backoff on failure; raise on all retries exhausted
+  - `get_relevant_chunks(query, max_retries=3)`:
+    - Call `embed_query()` with timeout check
     - Qdrant `query_points()` with limit=`Config.TOP_K`, `with_payload=True`
-    - Extract `text`, `source_file` (as `source`), `module`, `chapter` from payload
-    - Exponential backoff on failure (2^n seconds)
-    - Return empty list on all retries exhausted
-  - `embed_query(query)` — standalone embedding for reuse
-- [ ] **Verify**: `get_relevant_chunks("What is ROS 2?")` returns list of dicts with `text`, `source`, `module`, `chapter` keys
+    - Filter results by `score >= Config.RELEVANCE_THRESHOLD`
+    - Extract payload fields: `content` -> `text`, `source_file` -> `source`, `module`, `chapter`
+    - Exponential backoff on failure; return empty list on all retries exhausted
+- [ ] Write tests (7 tests): returns text and source, empty results, retries succeed on 3rd attempt, fails all retries (returns empty), filters low score, missing payload field, embed raises on failure
+- [ ] **Verify**: `uv run pytest tests/test_retrieval.py -v` passes all 7 tests
+
+### Task 3.5: Agent Instructions Tests
+- [ ] Write `test_agent_instructions.py` (5 tests): chunks included, string fallback, empty chunks, scores present, grounding policy
+- [ ] **Verify**: `uv run pytest tests/test_agent_instructions.py -v` passes
 
 ---
 
 ## Phase 4: API Layer
 
-**Timeline**: Week 4
+**Timeline**: Week 5
 **Dependencies**: Phase 3 complete
 
 ### Task 4.1: Input Validation
 - [ ] Implement `utils/validation.py`:
-  - `validate_query()`: min 3 chars, max 2000 chars, XSS patterns, SQL injection patterns, code execution patterns, path traversal patterns, url-encoded traversal
-  - Return `(is_valid, error_message, sanitized_query)` — HTML-escaped
-  - `validate_user_id()`: max 100 chars, alphanumeric + hyphen + underscore, no path traversal
-  - `validate_session_id()`: same rules as user_id
-  - `sanitize_input()`: HTML escape + remove dangerous sequences
-- [ ] **Verify**: XSS attempt `"<script>alert(1)</script>"` is rejected; valid query `"What is ROS 2?"` passes
+  - `validate_query(query)` -> `(is_valid, error_message, sanitized_query)`:
+    - Check: None/empty, length <3 or >2000
+    - Check: XSS patterns (`<script`, `javascript:`, `onerror=`, `onload=`)
+    - Check: OS command patterns (`rm -rf`, `; `, `| `, `$(`, backtick)
+    - Check: SQL injection patterns (UNION, DROP, DELETE, --, ' OR '1'='1)
+    - Check: Path traversal (`../`, `..\\`)
+    - Return sanitized (HTML-escaped) query
+  - `validate_user_id(user_id)` -> `(is_valid, error_message)`:
+    - Check: None/empty, length >100, non-alphanumeric chars, path traversal
+  - `validate_session_id(session_id)` -> same rules as user_id
+  - `sanitize_input(text)` -> HTML escape + remove `eval`, `exec`, `os.`, `subprocess`, `__import__`, `..`
+- [ ] Write tests (26 tests across 4 classes): valid/invalid queries, XSS, JS, OS commands, path traversal, SQL, HTML escaping, user/session ID validation, sanitize edge cases
+- [ ] **Verify**: `uv run pytest tests/test_validation.py -v` passes all 26 tests
 
 ### Task 4.2: FastAPI Application (app.py)
-- [ ] Implement `app.py`:
-  - Load config + validate on module import
-  - Configure logging with timestamps
-  - Parse `ALLOWED_ORIGINS` from env, normalize (strip trailing slashes)
-  - Apply CORSMiddleware with parsed origins
-  - Lifespan: initialize ChatKitServer
-  - Middleware: `X-Process-Time` header
+- [ ] Implement `app.py` (330 lines):
+  - Import config, validate on module import (exit(1) on failure)
+  - Configure `logging` with timestamp format
+  - Parse `ALLOWED_ORIGINS` from env, normalize (strip trailing slashes), default to `http://localhost:3000,https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app`
+  - Apply `CORSMiddleware` with parsed origins
+  - Lifespan context manager: initialize ChatKitServer on startup
+  - Middleware `add_process_time_header`: calculate elapsed, add `X-Process-Time` header
+  - Rate limiter middleware: `InMemoryRateLimiter(max_requests=60, window_seconds=60)`, return 429 on overflow
   - Routes:
-    - `GET /`: API metadata
-    - `GET /health`: HealthCheckResponse
-    - `POST /chat`: validate input → SSE stream via `chat_stream_generator()`
-    - `POST /chatkit`: ChatKit protocol handler → `chatkit_server.process()`
-    - `POST /api/chatkit/session`: create thread, return client_secret + thread_id
-    - `POST /api/chatkit/refresh`: generate new client_secret
-    - `GET /api/chatkit/user`: return user metadata
-- [ ] **Verify**: All routes return correct status codes + response schemas
+    - `GET /`: API metadata with available endpoints
+    - `GET /health`: `HealthCheckResponse(status="healthy", version="0.1.0", timestamp=now)`
+    - `POST /chat`: validate input, call `chat_stream_generator()`, return `StreamingResponse(media_type="text/event-stream")`
+    - `POST /chatkit`: extract page context from body metadata, call `chatkit_server.process()`, return `StreamingResponse`
+    - `POST /api/chatkit/session`: create thread via store, generate `client_secret` via `secrets.token_urlsafe(32)`, return `ChatKitSessionResponse`
+    - `POST /api/chatkit/refresh`: generate new secret, return response
+    - `GET /api/chatkit/user`: return user info from `X-User-ID` header
+  - `chat_stream_generator(request)`: SSE producer with sentinel tracking
+    - Call `get_relevant_chunks(query)`
+    - `Runner.run_streamed(book_knowledge_agent, query, context={chunks, user_id, session_id})`
+    - Yield `SSEMessage(type="token")` for deltas
+    - Yield `SSEMessage(type="final")` with AgentResponse on completion
+    - Catch `InputGuardrailTripwireTriggered` -> yield error event
+    - Catch general exceptions -> yield error event (not raise)
+    - If `tokens_yielded == 0` -> yield empty-response error event
+- [ ] Write tests (5 test_chat_endpoint + 5 test_chatkit_protocol + 7 test_middleware = 17 tests)
+- [ ] **Verify**: `uv run pytest tests/test_chat_endpoint.py tests/test_chatkit_protocol.py tests/test_middleware.py -v` passes
 
-### Task 4.3: SSE Streaming (chat_stream_generator)
-- [ ] Implement `chat_stream_generator()`:
-  - Call `get_relevant_chunks()` with query
-  - `Runner.run_streamed()` with agent + query + context (chunks, user_id, session_id)
-  - Iterate `stream_events()`:
-    - `raw_response_event`: extract `delta` → yield `SSEMessage(type="token")` as SSE `data:`
-    - `run_item_stream_event`: extract `final_output` → yield `SSEMessage(type="final")` with AgentResponse
-  - Handle `InputGuardrailTripwireTriggered`: yield error SSE event
-  - Handle general exceptions: yield error SSE event (not raise)
-  - If 0 tokens yielded: yield empty-response error event
-- [ ] **Verify**: SSE stream yields token events followed by final event; error events for guardrail/empty
-
-### Task 4.4: ChatKit Protocol Bridge
-- [ ] Implement `chatkit_server.py`:
+### Task 4.3: ChatKit Protocol Bridge
+- [ ] Implement `chatkit_server.py` (157 lines):
   - `CustomChatKitServer(ChatKitServer[RequestContext])`:
+    - `constructor`: store reference
     - `respond(thread, input_user_message, context)`:
-      - If no user message, return
-      - Load last 10 thread items for history
-      - Format history into role-prefixed lines (User/Assistant/Tool/Widget)
+      - Guard: if no user message, return
+      - Load last 10 thread items via `self.store.load_thread_items()`
+      - Build history string with role prefixes (User/Assistant/Tool/Widget)
       - Extract page context from `context.page_context`
-      - Extract query from `input_user_message.content`
-      - Call `get_relevant_chunks()` with page title + query
+      - Extract query text from `input_user_message.content`
+      - Call `get_relevant_chunks()` with search query combining page title + user query
       - Build `agent_run_context` dict with chunks, page_context, user_id, thread_id
-      - Create `dynamic_instructions()` that prepends history + page context to base instructions
+      - Create `dynamic_instructions()` closure that prepends history + page context to base instructions
       - Clone transient agent from `book_knowledge_agent` with dynamic instructions
       - `Runner.run_streamed()` with cloned agent
       - `stream_agent_response()` yields ChatKit SSE events
       - Track `sent_any_event` flag
-      - On exception: only yield ErrorEvent if `not sent_any_event` (preserve partial responses)
-  - `initialize_chatkit_server(db_path)` → create SQLiteStore, initialize, return CustomChatKitServer
-- [ ] **Verify**: Send ChatKit protocol message → receive SSE stream with agent response → thread persisted in SQLite
+      - On exception: yield `ErrorEvent(code="custom", allow_retry=True/False)` only if `not sent_any_event`
+  - `initialize_chatkit_server(db_path="chatkit.db")` factory: create SQLiteStore, initialize, return CustomChatKitServer
+- [ ] Write tests (5 tests): initialization, guardrail tripwire yields ErrorEvent, generic error yields retryable ErrorEvent, history injected into instructions, page context injected
+- [ ] **Verify**: `uv run pytest tests/test_chatkit_server.py -v` passes all 5 tests
 
-### Task 4.5: ChatKit Session & Refresh Endpoints
-- [ ] `/api/chatkit/session`: Create SQLite thread, generate client_secret via `secrets.token_urlsafe(32)`, return `ChatKitSessionResponse`
-- [ ] `/api/chatkit/refresh`: Read `X-User-ID` header, generate new secret, return response
-- [ ] `/api/chatkit/user`: Read `X-User-ID` header, return user metadata
+### Task 4.4: Config Tests
+- [ ] Write `test_config.py` (4 tests): validation success, defaults, model env var, validation errors
+- [ ] **Verify**: `uv run pytest tests/test_config.py -v` passes all 4 tests
 
 ---
 
 ## Phase 5: Frontend
 
-**Timeline**: Week 5
+**Timeline**: Week 6
 **Dependencies**: Phase 4 complete
 
 ### Task 5.1: Custom CSS Design System
-- [ ] Implement `src/css/custom.css`:
+- [ ] Implement `src/css/custom.css` (241 lines):
   - Import Inter font
-  - Define CSS custom properties for light + dark modes
-  - Color system: `--ifm-color-primary: #6366F1` (indigo), dark bg `#0A0E1A`, light bg `#F0F2F5`
+  - CSS custom properties for light + dark modes
+  - Color system: primary `#6366F1` (indigo), dark bg `#0A0E1A`, light bg `#F0F2F5`
   - Text hierarchy: 100% white (headings), 87% (body), 60% (secondary), 38% (disabled)
-  - Glassmorphism navbar: `backdrop-filter: blur(12px) saturate(180%)`, border, 72px height
-  - Card styles: glass effect in dark mode, elevated white in light mode, hover lift
-  - Button: gradient `#6366F1 → #8B5CF6`, 12px border-radius, lift on hover, scale on active
+  - Glassmorphism navbar: `backdrop-filter: blur(12px) saturate(180%)`, `rgba(255,255,255,0.05)` background
+  - Card styles: glass effect in dark mode, elevated white in light mode, hover lift transform
+  - Button: gradient `#6366F1 -> #8B5CF6`, 12px border-radius, lift on hover, scale on active
   - Footer: dark style with indigo top border
-  - Sidebar: active link with indigo background, hover with subtle indigo
+  - Sidebar: active link with indigo background, hover with subtle indigo tint
   - Table, pagination, TOC styles for dark mode
-  - Responsive: mobile navbar (56-64px), footer padding, hide TOC on small screens
-  - `fadeInUp` animation keyframe
+  - Responsive: mobile navbar 56-64px, footer padding, hide TOC on small screens
+  - `fadeInUp` animation keyframe for card entrance
 - [ ] **Verify**: `npm run build` succeeds; dark mode renders with glassmorphism
 
 ### Task 5.2: Homepage with Hero + Module Cards
 - [ ] Implement `src/pages/index.tsx`:
-  - Hero header: full-viewport, gradient bg (`#0A0E1A → #1E1B4B`), radial glow orbs, glass card container
-  - Title: gradient text `#FFFFFF → #A5B4FC → #C7D2FE`, 3.5rem, font-weight 800
+  - Call `HomepageHeader()`: hero with gradient bg (`#0A0E1A -> #1E1B4B`), glow orbs via pseudo-elements, glass card container
+  - Title: gradient text `#FFFFFF -> #A5B4FC -> #C7D2FE`, 3.5rem, font-weight 800
   - Subtitle: `rgba(255,255,255,0.6)`, 1.25rem
   - CTA button "Get Started" linking to `/docs/glossary`
-  - Module cards section: 4 cards in 2×2 grid
+  - Module cards section: 4 cards in 2x2 grid
+  - `HomepageFeatures` component rendering 4 module cards
 - [ ] Implement `src/pages/index.module.css`:
   - Hero: `min-height: 100vh`, gradient bg, glow pseudo-elements
-  - Glass card: `backdrop-filter: blur(20px)`, border, multi-layer shadow, fadeInUp animation
+  - Glass card: `backdrop-filter: blur(20px)`, border, multi-layer shadow, `fadeInUp` animation
   - Mobile: smaller title, compact glass
-- [ ] **Verify**: Homepage renders hero + 4 module cards; cards are clickable links
-
-### Task 5.3: Module Cards Component
 - [ ] Implement `src/components/HomepageFeatures/index.tsx`:
   - 4 module cards: Foundations, Simulation, Advanced Simulation, Integration & Capstone
-  - Each card: icon, badge (01-04), title, description, chapter list, "Explore Module →" CTA
-  - Cards are `<Link>` elements linking to module's first chapter
+  - Each card: icon, badge (01-04), title, description, chapter list, "Explore Module ->" CTA
+  - Cards are `<Link>` elements to module's first chapter
   - Staggered animation delay per card
 - [ ] Implement `src/components/HomepageFeatures/styles.module.css`:
-  - 2×2 grid, 24px gap
+  - 2x2 grid, 24px gap, responsive single column on mobile
   - Glass card with hover lift, shadow expansion
-  - Chapter list with `›` prefix bullets
+  - Chapter list with `>` prefix bullets
   - CTA arrow animates on hover (gap grows)
-  - Mobile: single column
-- [ ] **Verify**: Module cards render with correct links; clicking navigates to chapter
+- [ ] **Verify**: Homepage renders hero + 4 module cards; cards are clickable links to chapters
 
-### Task 5.4: ChatKit Widget
-- [ ] Implement `src/components/ChatKitWidget.tsx`:
-  - Floating button (bottom-right, gradient bg, 60px circle)
-  - Chat window (420px wide, `height: min(600px, calc(100vh - 140px))`, glass effect)
-  - Always mounted (CSS visibility toggle preserves conversation state)
-  - `useChatKit()` with custom fetch interceptor
-  - Error banner with 10s auto-dismiss
-  - Text selection listener: show "Ask AI" button for selections >10 chars
-  - Click "Ask AI" → open widget + pre-fill composer with selection text
-  - Persistent student ID in localStorage
-- [ ] Implement `src/components/ChatKitWidget.module.css`:
-  - Fixed positioning, z-index layering
-  - Chat window: `height: min(600px, calc(100vh - 140px))` — responsive to viewport
-  - Mobile: full-width, smaller toggle button
-  - Error banner: red, dismiss button
-- [ ] **Verify**: Widget opens/closes; messages appear; error banner shows on failure; text selection triggers AI button
+### Task 5.3: ChatKit Widget
+- [ ] Implement `src/components/ChatKitWidget.tsx` (126 lines):
+  - ChatKit imports: `ChatKit`, `useChatKit` from `@openai/chatkit-react`
+  - Read `apiBaseUrl` and `chatkitDomainKey` from Docusaurus `customFields` via `useDocusaurusContext()`
+  - Persistent student ID via `localStorage.getItem("chatkit_student_id")` -> generate UUID if missing
+  - Create `createChatKitFetch(studentId)` via `useMemo` for stable reference
+  - Toggle button: bottom-right fixed, 60px circle, gradient bg `#6366F1 -> #8B5CF6`, `onClick` toggles `isOpen`
+  - Chat window: 420px wide, `height: min(600px, calc(100vh - 140px))`, glass effect (`backdrop-filter: blur(16px)`)
+  - Always mounted (CSS `visibility`/`opacity` toggle preserves conversation state)
+  - `ChatKit domainKey={customFields.chatkitDomainKey}` with custom fetch interceptor
+  - Error state: `errorMessage` + `errorCount` displayed in error banner, auto-dismiss after 10s via `setTimeout`
+  - Text selection listener via `document.addEventListener('mouseup', ...)`:
+    - Get selection via `window.getSelection()`
+    - If `text.length > 10` and not inside chat widget:
+      - Get bounding rect via `Range.getBoundingClientRect()`
+      - Position "Ask AI" button absolutely above selection
+      - On click: set `composerValue` to `Tell me more about this: "{selection}"`, open chat
+  - Cleanup: remove event listeners on unmount, clear error timeout
+- [ ] Implement `src/components/ChatKitWidget.module.css` (157 lines):
+  - Fixed positioning, `z-index: 1000` for toggle, `z-index: 1100` for window
+  - Chat window: `height: min(600px, calc(100vh - 140px))`, responsive
+  - Mobile breakpoint 600px: full-width, smaller toggle button (52px)
+  - Error banner: red gradient, pulse animation, dismiss button
+  - "Ask AI" tooltip: floating above selection, gradient bg, shadow
+- [ ] **Verify**: Widget opens/closes; messages appear in stream; error banner shows on failure; text selection >10 chars triggers AI button
 
-### Task 5.5: ChatKit Fetch Interceptor
+### Task 5.4: Context Extraction Utilities
 - [ ] Implement `src/utils/context-extractor.ts`:
-  - `getPageContext()` returns `{url, title, headings}`
-  - Extract headings from h1/h2 elements (limit 5)
+  - `PageContext` interface: `{url: string, title: string, headings: string[]}`
+  - `getPageContext()`: SSR-safe (check `typeof window !== 'undefined'`)
+  - Extract `window.location.href` for URL
+  - Extract `document.title` and strip ` | Physical AI & Humanoid Robotics` suffix
+  - Query `document.querySelectorAll('h1, h2')` for headings, limit to 5, trim whitespace
 - [ ] Implement `src/utils/chatkit-fetch.ts`:
-  - `createChatKitFetch(studentId)` returns fetch interceptor
-  - Inject `X-User-ID` header
-  - Intercept `threads.create`, `threads.addUserMessage`, `threads.run` messages
-  - Inject `pageContext` into message metadata
-  - Support both string and JSON body parsing
+  - `createChatKitFetch(studentId: string)` returns async fetch function
+  - Clone `RequestInit` headers, set `X-User-ID: studentId`, `Content-Type: application/json`
+  - Parse request body as JSON
+  - Detect message types: `threads.create`, `threads.addUserMessage`, `threads.run`
+  - For those types, inject `pageContext` into `params.input.metadata`
+  - If body is not valid JSON, pass through unmodified
+  - Return `fetch(url, modifiedOptions)`
 - [ ] **Verify**: ChatKit messages include page context in metadata payload
 
-### Task 5.6: Root Theme Wrapper
+### Task 5.5: Root Theme Wrapper
 - [ ] Implement `src/theme/Root.tsx`:
-  - Wraps all pages with `{children}` + `ChatKitWidget`
-- [ ] **Verify**: ChatKitWidget renders on every page
+  - Wraps `{children}` + `<ChatKitWidget />` in a React Fragment
+- [ ] **Verify**: ChatKitWidget renders on every page (check DOM on navigation)
 
 ---
 
 ## Phase 6: Deployment & CI
 
-**Timeline**: Week 6
+**Timeline**: Week 7
 **Dependencies**: All phases complete
 
 ### Task 6.1: GitHub Actions Workflow
-- [ ] Implement `.github/workflows/deploy.yml`:
+- [ ] Implement `.github/workflows/deploy.yml` (88 lines):
   - Trigger: push to `main` on `my_project/backend/**` paths
-  - Step 1: Checkout with full depth
-  - Step 2: Clone HF Space repo
-  - Step 3: Copy ALL backend files: `app.py`, `agent.py`, `config.py`, `retrieval.py`, `chatkit_server.py`, `store.py`, `pyproject.toml`, `uv.lock`, `Dockerfile`, `models/`, `utils/`
-  - Step 4: Git add, commit, push to HF Space
+  - Job 1 - `test`:
+    - `ubuntu-latest`, checkout with `fetch-depth: 0`
+    - Install uv via `astral-sh/setup-uv@v5` with cache
+    - Set up Python via `actions/setup-python@v5` with `python-version-file`
+    - Install backend deps: `uv sync` in `my_project/backend`
+    - Run backend tests: `uv run pytest tests/ -v` with mock env vars
+    - Install ingestion deps: `uv sync` in `my_project/ingestion`
+    - Run ingestion tests: `uv run pytest tests/ -v` with mock env vars
+  - Job 2 - `deploy`:
+    - `needs: test` (tests must pass before deploy)
+    - Checkout code
+    - Clone HF Space repo: `https://huggingface.co/spaces/$USER/$SPACE`
+    - Copy all backend files: `app.py`, `agent.py`, `config.py`, `retrieval.py`, `chatkit_server.py`, `store.py`, `pyproject.toml`, `uv.lock`, `Dockerfile`, `models/`, `utils/`
+    - Git add, commit, push with `$HF_TOKEN` auth
   - Required secrets: `HF_TOKEN`, `HF_USERNAME`, `HF_SPACE_NAME`
-- [ ] **Verify**: Push to main triggers workflow; HF Space updates with new code
+- [ ] **Verify**: Push to main triggers workflow; tests pass; HF Space updates
 
 ### Task 6.2: Vercel Configuration
-- [ ] Create `my_project/frontend/vercel.json`:
-  - `buildCommand`: `npm run build`
-  - `outputDirectory`: `build`
-  - Rewrites for API proxying: `/api/chatkit/*` → `https://$API_BASE_URL/api/chatkit/$1`
-- [ ] Connect Vercel project to GitHub repo
-- [ ] Set `API_BASE_URL` env var in Vercel pointing to HF Space
-- [ ] **Verify**: Push to main triggers Vercel deploy; site is live at production URL
+- [ ] Configure Vercel project from GitHub repo
+- [ ] Set build settings: Framework = Docusaurus, Build Command = `npm run build`, Output = `build`
+- [ ] Set `API_BASE_URL` env var pointing to HF Space backend
+- [ ] **Verify**: Push to main triggers Vercel deploy; site live at production URL
 
 ### Task 6.3: Environment Configuration
-- [ ] Add all API keys as GitHub Actions secrets
+- [ ] Add `HF_TOKEN`, `HF_USERNAME`, `HF_SPACE_NAME` as GitHub Actions secrets
 - [ ] Add all API keys as HF Space secrets
 - [ ] Add `API_BASE_URL` as Vercel env var
-- [ ] Remove `my_project/.env` from git tracking: `git rm --cached my_project/.env`
-- [ ] Verify `.gitignore` covers all sensitive patterns
+- [ ] Verify `.gitignore` covers: `.env`, `chatkit.db`, `*.pyc`, `__pycache__/`, `node_modules/`, `build/`, `.docusaurus/`, `.venv/`, `.pytest_cache/`
+- [ ] Create `.env.example` with documented placeholders for all environment variables
 
 ### Task 6.4: E2E Verification
-- [ ] Frontend build: `npm run typecheck && npm run build`
-- [ ] Backend deps: `uv sync --frozen --no-group dev`
-- [ ] Backend tests: `uv run pytest tests/ -v` — expect 15 pass
-- [ ] Docker build: `docker build .` — expect success
-- [ ] Ingestion: `python ingest_book.py --docs-dir=./my_project/frontend/docs` — expect all files processed
-- [ ] Ingestion tests: `python -m unittest test_ingest_book.py`
-- [ ] ChatKit endpoint: POST to `/chatkit` with valid body — expect 200 + SSE stream
-- [ ] Chat endpoint: POST to `/chat` with valid query — expect 200 + SSE stream
+- [ ] Frontend: `npm run typecheck && npm run build` -- expect 0 errors
+- [ ] Backend deps: `uv sync --frozen --no-group dev` -- expect 0 errors
+- [ ] Backend tests: `uv run pytest tests/ -v` -- expect 99 pass
+- [ ] Ingestion deps: `uv sync --frozen` -- expect 0 errors
+- [ ] Ingestion tests: `uv run pytest tests/ -v` -- expect 79 pass
+- [ ] Docker build: `docker build .` -- expect success
+- [ ] Chat endpoint: POST to `/chat` with valid query -- expect 200 + SSE stream
+- [ ] ChatKit endpoint: POST to `/chatkit` -- expect 200 + SSE stream
+- [ ] Health endpoint: GET `/health` -- expect 200 with status/version/timestamp
 
 ---
 
@@ -395,19 +464,22 @@ This task breakdown represents how to rebuild the system from scratch using the 
 - [ ] Update local `.env` with new keys
 - [ ] Remove `.env` from git history: `git filter-branch` or BFG Repo-Cleaner
 
-### Task 7.2: CI Test Execution
-- [ ] Add `uv run pytest tests/ -v` step before deploy in `deploy.yml`
-- [ ] Add test environment setup (mock API keys for CI)
-- [ ] Fail the workflow if tests don't pass
+### Task 7.2: Observability
+- [ ] Add structured JSON logging with `python-json-logger` or custom formatter
+- [ ] Add request correlation IDs via middleware (`X-Request-ID`)
+- [ ] Add health check endpoint with dependency verification (Qdrant, Cohere connectivity)
+- [ ] Add Prometheus metrics endpoint for request count, latency, error rate
 
-### Task 7.3: Monitoring
-- [ ] Add `/health` dependency verification (check Qdrant + Cohere connectivity)
-- [ ] Add structured JSON logging
-- [ ] Add Prometheus metrics endpoint
-- [ ] Create Grafana dashboard for request rate, latency, error rate
-
-### Task 7.4: Documentation
-- [ ] Generate OpenAPI/Swagger docs from FastAPI routes
-- [ ] Write deployment runbook
+### Task 7.3: Documentation
+- [ ] Expose FastAPI auto-generated OpenAPI/Swagger docs at `/docs`
+- [ ] Write deployment runbook for HF Spaces + Vercel
 - [ ] Write troubleshooting guide for common issues
-- [ ] Update AGENTS.md with any new commands or quirks
+- [ ] Update `AGENTS.md` with any new commands or quirks
+
+### Task 7.4: Technical Debt Reduction
+- [ ] Move test dependencies to `[dependency-groups] dev` in both pyproject.toml files
+- [ ] Add `__init__.py` to `models/` and `utils/` directories
+- [ ] Remove dead code (`initialize_agent` function)
+- [ ] Extract shared RAG orchestration service (duplicated between app.py and chatkit_server.py)
+- [ ] Add Redis-based embedding cache as alternative to in-memory dict
+- [ ] Implement semantic chunking that respects paragraph/section boundaries

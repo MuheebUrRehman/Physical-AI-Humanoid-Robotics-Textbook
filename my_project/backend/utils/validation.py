@@ -32,23 +32,17 @@ def validate_query(query: str) -> tuple[bool, Optional[str], str]:
         r'on\w+\s*=',  # Potential XSS
         r'eval\s*\(',  # Potential code execution
         r'exec\s*\(',  # Potential code execution
-        r'__import__',  # Potential Python import
-        r'os\.',  # Potential OS command
+        r'os\.system\s*\(',  # Potential OS command (not bare 'os.')
         r'subprocess\.',  # Potential subprocess execution
-        r'import\s+\w+',  # Potential import statements
         r'(\.\.\/)+',  # Directory traversal
-        r'%2e%2e%2f',  # URL encoded directory traversal
-        r'\.\.\.',  # More directory traversal
     ]
 
     for pattern in harmful_patterns:
         if re.search(pattern, query, re.IGNORECASE):
             return False, "Query contains potentially harmful content", query
 
-    # Additional check: look for SQL injection patterns
+    # Additional check: look for SQL injection patterns (only dangerous constructs)
     sql_patterns = [
-        r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|ALL|WHERE|FROM)\b)",
-        r"(\b(OR|AND)\s+[\w\s]*=[\w\s]*\b)",
         r"(\'\s*(OR|AND)\s*\'\s*=\s*\'\s*)",
         r"(;\s*(DROP|EXEC|CALL|ALTER)\s+)",
     ]

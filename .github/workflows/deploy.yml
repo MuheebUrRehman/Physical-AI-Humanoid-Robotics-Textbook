@@ -7,9 +7,52 @@ on:
       - 'my_project/backend/**'
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
+    steps:
+    - name: Get code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: "my_project/backend/.python-version"
+
+    - name: Install backend dependencies
+      run: uv sync
+      working-directory: my_project/backend
+
+    - name: Run backend tests
+      run: uv run pytest tests/ -v
+      working-directory: my_project/backend
+      env:
+        COHERE_API_KEY: test-key
+        QDRANT_API_KEY: test-key
+        LLM_API_KEY: test-key
+        QDRANT_HOST: localhost
+
+    - name: Install ingestion dependencies
+      run: uv sync
+      working-directory: my_project/ingestion
+
+    - name: Run ingestion tests
+      run: uv run pytest tests/ -v
+      working-directory: my_project/ingestion
+      env:
+        COHERE_API_KEY: test-key
+        QDRANT_API_KEY: test-key
+        QDRANT_HOST: localhost
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
     steps:
     - name: Get code
       uses: actions/checkout@v4
@@ -25,10 +68,8 @@ jobs:
         git config --global user.email "bot@github.com"
         git config --global user.name "Bot"
 
-        # Clone the HF Space repo
         git clone https://huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME hf
 
-        # Copy all necessary backend files from the subdirectory to the HF repo root
         cp my_project/backend/app.py hf/
         cp my_project/backend/agent.py hf/
         cp my_project/backend/config.py hf/
@@ -41,7 +82,6 @@ jobs:
         cp -r my_project/backend/models hf/
         cp -r my_project/backend/utils hf/
 
-        # Commit and push to Hugging Face
         cd hf
         git add .
         git commit -m "Deploy: Update backend files" || echo "No changes to commit"

@@ -25,15 +25,6 @@ class SSEMessage(BaseModel):
     content: Union[str, AgentResponse] = Field(..., description="Content of the event")
 
 
-class ChatResponse(BaseModel):
-    """Response model for chat interactions."""
-
-    response: str = Field(..., description="The AI-generated response to the query")
-    source_chunks: List[str] = Field(default_factory=list, description="List of source chunks used to generate the response")
-    confidence: float = Field(ge=0.0, le=1.0, default=0.0, description="Confidence score of the response")
-    query_id: Optional[str] = Field(None, description="Identifier for the query")
-
-
 class ErrorResponse(BaseModel):
     """Error response model for chat interactions."""
 

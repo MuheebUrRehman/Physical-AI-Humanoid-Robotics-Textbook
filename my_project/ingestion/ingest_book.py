@@ -33,6 +33,10 @@ except ImportError:
     print("Warning: Qdrant client library not found. Please install it using 'pip install qdrant-client'")
 
 
+# Anchor docs directory relative to this script's location — works from any CWD
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_DOCS_DIR = os.path.normpath(os.path.join(_SCRIPT_DIR, '..', 'frontend', 'docs'))
+
 # Load configuration from .env file
 load_dotenv()
 
@@ -44,7 +48,7 @@ def load_config():
         'qdrant_api_key': os.getenv('QDRANT_API_KEY'),
         'qdrant_host': os.getenv('QDRANT_HOST', 'localhost'),
         'qdrant_port': int(os.getenv('QDRANT_PORT', 6333)),
-        'docs_directory': os.getenv('DOCS_DIR', './my_project/frontend/docs'),
+        'docs_directory': os.getenv('DOCS_DIR', _DEFAULT_DOCS_DIR),
         'chunk_size': int(os.getenv('CHUNK_SIZE', 512)),
         'chunk_overlap': int(os.getenv('CHUNK_OVERLAP', 50)),
         'cohere_model': os.getenv('COHERE_MODEL', 'embed-multilingual-v3.0')
@@ -204,32 +208,6 @@ class VectorRecord:
         )
 
 
-def retry_with_backoff(func, max_retries: int = 3, base_delay: float = 1.0):
-    """
-    Decorator to retry API calls with exponential backoff.
-    """
-    def wrapper(*args, **kwargs):
-        last_exception = None
-
-        for attempt in range(max_retries):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                last_exception = e
-                if attempt == max_retries - 1:  # Last attempt
-                    logging.error(f"Failed after {max_retries} attempts: {str(e)}")
-                    raise e
-
-                # Calculate delay with exponential backoff
-                delay = base_delay * (2 ** attempt)
-                logging.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying in {delay}s...")
-                time.sleep(delay)
-
-        raise last_exception
-
-    return wrapper
-
-
 def handle_api_call_with_retry(api_call_func, *args, max_retries: int = 3, **kwargs):
     """
     Generic function to handle API calls with retry mechanism.
@@ -335,7 +313,7 @@ def extract_module_and_chapter_from_path(file_path: str) -> Tuple[str, str]:
     return 'unknown', base_name
 
 
-def validate_file_path(file_path: str, base_dir: str = './my-website/docs') -> bool:
+def validate_file_path(file_path: str, base_dir: str = _DEFAULT_DOCS_DIR) -> bool:
     """
     Validate file path to prevent directory traversal vulnerabilities.
     """
@@ -455,37 +433,6 @@ def process_large_mdx_file(file_path: str, chunk_size: int = 8192) -> Optional[s
         return None
 
 
-def is_file_corrupted(file_path: str, max_size_mb: int = 100) -> bool:
-    """
-    Check if a file is potentially corrupted based on size and readability [US2].
-    """
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Check file size
-        file_size = os.path.getsize(file_path)
-        max_size_bytes = max_size_mb * 1024 * 1024  # Convert MB to bytes
-
-        if file_size > max_size_bytes:
-            logger.warning(f"File is too large ({file_size / (1024*1024):.2f} MB), may cause memory issues: {file_path}")
-            return True
-
-        # Try to read a small portion of the file to check if it's corrupted
-        with open(file_path, 'rb') as file:
-            # Read first 100 bytes to check for obvious corruption
-            sample = file.read(100)
-            # Check for excessive null bytes or non-printable characters that might indicate corruption
-            null_bytes = sample.count(b'\x00')
-            if len(sample) > 0 and null_bytes / len(sample) > 0.5:  # If more than 50% are null bytes
-                logger.warning(f"File appears to contain excessive null bytes, possibly corrupted: {file_path}")
-                return True
-
-        return False
-    except Exception as e:
-        logger.error(f"Error checking file for corruption {file_path}: {str(e)}")
-        return True  # If we can't check, assume it's problematic
-
-
 def convert_mdx_to_text(mdx_content: str) -> str:
     """
     Create MDX to plain text conversion function [US1].
@@ -546,144 +493,116 @@ def convert_mdx_to_text(mdx_content: str) -> str:
 
 def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]:
     """
-    Implement text chunking function with 512-token chunks and 50-token overlap [US1].
-    Note: For simplicity, we're using character-based chunking instead of token-based.
-    In a production system, we'd use a proper tokenizer.
+    Token-aware chunking using tiktoken with paragraph-first, sentence-second boundaries.
+
+    Splits text into chunks of approximately `chunk_size` tokens (not characters),
+    preferring to break at paragraph boundaries. Falls back to sentence boundaries
+    within oversized paragraphs. Overlap ensures context continuity.
     """
+    import tiktoken
+
     logger = logging.getLogger(__name__)
-    logger.info(f"Chunking text of length {len(text)} with chunk_size={chunk_size}, overlap={overlap}")
+    logger.info(f"Chunking text of length {len(text)} (chars) with target {chunk_size} tokens, overlap {overlap} tokens")
 
     if not text:
         return []
 
-    # For this implementation, we'll use a simple character-based approach
-    # In production, you might want to use a proper tokenization library
+    if overlap >= chunk_size:
+        overlap = chunk_size // 2
+        logger.warning(f"Overlap was >= chunk_size, reducing to {overlap}")
+
+    enc = tiktoken.get_encoding("cl100k_base")
+
+    def count_tokens(t: str) -> int:
+        return len(enc.encode(t))
+
+    def find_sentence_boundary(t: str, approx_pos: int) -> int:
+        """Find the last sentence boundary before approx_pos."""
+        search_start = max(0, approx_pos - 100)
+        search_region = t[search_start:approx_pos]
+        for sep in ('. ', '?\n', '!\n', '.\n', '.\r\n', '?\r\n', '!\r\n'):
+            idx = search_region.rfind(sep)
+            if idx != -1:
+                return search_start + idx + len(sep)
+        return approx_pos
+
+    # Split into paragraphs first
+    paragraphs = text.split('\n\n')
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+
     chunks = []
-    start = 0
+    current_chunk_parts: List[str] = []
+    current_tokens = 0
+    overlap_text = ""
 
-    # Prevent infinite loops by tracking previous start position
-    prev_start = -1
+    def flush_chunk() -> str:
+        nonlocal overlap_text, current_chunk_parts, current_tokens
+        if not current_chunk_parts:
+            return None
+        chunk_text_str = '\n\n'.join(current_chunk_parts)
+        if overlap > 0 and overlap_text:
+            chunk_text_str = overlap_text + '\n\n' + chunk_text_str
+        # Compute overlap for next chunk from the end of this one
+        encoded = enc.encode(chunk_text_str)
+        overlap_token_count = min(overlap, len(encoded))
+        overlap_bytes = enc.decode(encoded[-overlap_token_count:])
+        overlap_text = overlap_bytes
+        current_chunk_parts = []
+        current_tokens = 0
+        return chunk_text_str
 
-    while start < len(text):
-        # Prevent infinite loop if start position doesn't advance
-        if start == prev_start:
-            logger.warning(f"Detected potential infinite loop in chunk_text, breaking. Current start: {start}")
-            break
-        prev_start = start
+    for para in paragraphs:
+        para_tokens = count_tokens(para)
 
-        # Calculate the end position
-        end = start + chunk_size
+        if para_tokens == 0:
+            continue
 
-        # If this is the last chunk and it's smaller than chunk_size, include it all
-        if end > len(text):
-            end = len(text)
+        # If a single paragraph exceeds the limit, split on sentence boundaries
+        if para_tokens > chunk_size:
+            # Flush what we have first
+            if current_chunk_parts:
+                chunk = flush_chunk()
+                if chunk:
+                    chunks.append(chunk)
 
-        # Extract the chunk
-        chunk = text[start:end]
-        chunks.append(chunk)
+            # Split the oversized paragraph on sentences
+            sentence_parts = para.replace('. ', '.\n').replace('! ', '!\n').replace('? ', '?\n').split('\n')
 
-        # Move the start position by chunk_size - overlap
-        # Ensure we advance by at least 1 character to avoid infinite loops
-        next_start = end - overlap
-        if next_start <= start:
-            # If overlap is too large, advance by at least 1
-            start = start + 1
-        else:
-            start = next_start
+            for sentence in sentence_parts:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                st = count_tokens(sentence)
+                if current_tokens + st > chunk_size and current_chunk_parts:
+                    chunk = flush_chunk()
+                    if chunk:
+                        chunks.append(chunk)
+                current_chunk_parts.append(sentence)
+                current_tokens += st
 
-        # If the remaining text is less than or equal to overlap, we're done
-        if start >= len(text):
-            break
+            if current_chunk_parts:
+                chunk = flush_chunk()
+                if chunk:
+                    chunks.append(chunk)
+            continue
 
-    logger.info(f"Text chunked into {len(chunks)} chunks")
+        # Normal paragraph fits or can start a new chunk
+        if current_tokens + para_tokens > chunk_size and current_chunk_parts:
+            chunk = flush_chunk()
+            if chunk:
+                chunks.append(chunk)
+
+        current_chunk_parts.append(para)
+        current_tokens += para_tokens
+
+    # Flush remaining
+    if current_chunk_parts:
+        chunk = flush_chunk()
+        if chunk:
+            chunks.append(chunk)
+
+    logger.info(f"Text chunked into {len(chunks)} token-aware chunks")
     return chunks
-
-
-def optimize_memory_usage():
-    """
-    Optimize performance and memory usage for large document sets [T047].
-    This function sets up memory-efficient processing for large document sets.
-    """
-    import gc
-    logger = logging.getLogger(__name__)
-
-    # Enable garbage collection
-    gc.enable()
-    logger.info("Garbage collection enabled for memory optimization")
-
-    # Set up memory monitoring if available
-    try:
-        import psutil
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        logger.info(f"Initial memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
-    except ImportError:
-        logger.info("psutil not available for memory monitoring")
-
-    return gc
-
-
-def process_large_document_set(file_paths: List[str], cohere_client, config: Dict,
-                              progress_callback=None) -> List[VectorRecord]:
-    """
-    Process large document sets with optimized memory usage [T047].
-    """
-    logger = logging.getLogger(__name__)
-    logger.info(f"Processing large document set of {len(file_paths)} files")
-
-    # Optimize memory usage
-    gc = optimize_memory_usage()
-
-    all_vector_records = []
-    processed_files = 0
-
-    # Process files one at a time to minimize memory usage
-    for i, file_path in enumerate(file_paths):
-        logger.debug(f"Processing file {i+1}/{len(file_paths)}: {file_path}")
-
-        try:
-            # Process single file
-            file_records = process_file_for_vectorization(file_path, cohere_client, config)
-            all_vector_records.extend(file_records)
-
-            processed_files += 1
-
-            # Perform garbage collection periodically
-            if processed_files % 10 == 0:
-                collected = gc.collect()
-                logger.debug(f"Garbage collection: collected {collected} objects")
-
-            # Call progress callback if provided
-            if progress_callback:
-                progress_callback(processed_files, len(file_paths))
-
-        except Exception as e:
-            logger.error(f"Error processing file {file_path}: {str(e)}")
-            continue  # Continue with other files
-
-    logger.info(f"Completed processing {processed_files} files, created {len(all_vector_records)} vector records")
-    return all_vector_records
-
-
-def optimize_chunking_for_storage(chunks: List[str], max_chunk_size: int = 1000) -> List[str]:
-    """
-    Handle document chunking to optimize vector storage and retrieval [US1].
-    This function can adjust chunks to be more optimal for storage and retrieval.
-    """
-    logger = logging.getLogger(__name__)
-    logger.info(f"Optimizing {len(chunks)} chunks for storage (max_chunk_size: {max_chunk_size})")
-
-    # For now, we'll just validate that no chunks exceed the max size
-    # In a more advanced implementation, we could merge small chunks or split large ones
-    optimized_chunks = []
-    for i, chunk in enumerate(chunks):
-        if len(chunk) > max_chunk_size:
-            logger.warning(f"Chunk {i} exceeds max size ({len(chunk)} > {max_chunk_size})")
-            # For now, we'll keep it as is, but in a real system we might want to re-chunk
-        optimized_chunks.append(chunk)
-
-    logger.info(f"Optimization complete, {len(optimized_chunks)} chunks")
-    return optimized_chunks
 
 
 def prepare_chunks_for_embedding(chunks: List[str], source_file: str, module: str, chapter: str) -> List[VectorRecord]:
@@ -862,45 +781,6 @@ def create_qdrant_collection(qdrant_client, collection_name: str = "book_vectors
         raise
 
 
-def store_vectors_in_qdrant(qdrant_client, vector_records: List[VectorRecord], collection_name: str = "book_vectors", batch_size: int = 100):
-    """
-    Implement function to store vector embeddings in Qdrant with metadata [US3].
-    Includes batch storage for efficiency.
-    """
-    logger = logging.getLogger(__name__)
-    logger.info(f"Storing {len(vector_records)} vectors in Qdrant collection: {collection_name} (batch size: {batch_size})")
-
-    if not vector_records:
-        logger.info("No vector records to store")
-        return True
-
-    try:
-        # Process in batches for efficiency
-        for i in range(0, len(vector_records), batch_size):
-            batch = vector_records[i:i + batch_size]
-            logger.info(f"Processing batch {i//batch_size + 1}/{(len(vector_records)-1)//batch_size + 1}")
-
-            # Convert VectorRecords to Qdrant points for this batch
-            points = []
-            for record in batch:
-                point = {
-                    "id": record.id,
-                    "vector": record.vector,
-                    "payload": record.to_payload()
-                }
-                points.append(point)
-
-            # Store the batch in Qdrant
-            result = safe_store_vectors_in_qdrant(qdrant_client, points, collection_name)
-
-        logger.info(f"Successfully stored {len(vector_records)} vectors in Qdrant (batch size: {batch_size})")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error storing vectors in Qdrant: {str(e)}")
-        raise
-
-
 def batch_store_vectors_in_qdrant(qdrant_client, vector_records: List[VectorRecord], collection_name: str = "book_vectors", batch_size: int = 100):
     """
     Implement batch storage for efficiency [US3].
@@ -1017,109 +897,6 @@ def validate_all_files_processed(original_files: List[str], processed_files: Lis
     return all_processed and has_vectors
 
 
-def query_vectors_for_retrieval(qdrant_client, query_text: str, cohere_client, collection_name: str = "book_vectors", limit: int = 5, model: str = "embed-multilingual-v3.0"):
-    """
-    Create query function to verify stored vectors are available for retrieval [US3].
-    """
-    logger = logging.getLogger(__name__)
-    logger.info(f"Querying vectors for retrieval: '{query_text}' in collection: {collection_name}")
-
-    try:
-        # First, we need to embed the query text using the same method as our stored vectors
-        # Embed the query text using Cohere
-        response = cohere_client.embed(
-            texts=[query_text],
-            model=model,
-            input_type="search_query"  # Specify this is a search query
-        )
-        query_embedding = response.embeddings[0]  # Get the first (and only) embedding
-
-        # Perform the search in Qdrant
-        search_results = qdrant_client.search(
-            collection_name=collection_name,
-            query_vector=query_embedding,
-            limit=limit,
-            with_payload=True
-        )
-
-        logger.info(f"Query returned {len(search_results)} results")
-        results = []
-        for result in search_results:
-            result_data = {
-                'id': result.id,
-                'score': result.score,
-                'payload': result.payload
-            }
-            results.append(result_data)
-            logger.debug(f"Result ID: {result.id}, Score: {result.score}, Content preview: {result.payload.get('content', '')[:100]}...")
-
-        return results
-
-    except Exception as e:
-        logger.error(f"Error during query for retrieval: {str(e)}")
-        return []
-
-
-def query_vectors_by_metadata(qdrant_client, source_file: str = None, module: str = None, chapter: str = None,
-                              collection_name: str = "book_vectors", limit: int = 10):
-    """
-    Alternative query function that searches by metadata [US3].
-    """
-    logger = logging.getLogger(__name__)
-    logger.info(f"Querying vectors by metadata in collection: {collection_name}")
-
-    try:
-        # Build the filter based on provided metadata
-        filter_conditions = []
-        if source_file:
-            filter_conditions.append(models.FieldCondition(
-                key="source_file",
-                match=models.MatchValue(value=source_file)
-            ))
-        if module:
-            filter_conditions.append(models.FieldCondition(
-                key="module",
-                match=models.MatchValue(value=module)
-            ))
-        if chapter:
-            filter_conditions.append(models.FieldCondition(
-                key="chapter",
-                match=models.MatchValue(value=chapter)
-            ))
-
-        # Create the filter
-        if filter_conditions:
-            search_filter = models.Filter(
-                must=filter_conditions
-            )
-        else:
-            search_filter = None
-
-        # Perform the search in Qdrant with the filter
-        search_results = qdrant_client.scroll(
-            collection_name=collection_name,
-            scroll_filter=search_filter,
-            limit=limit,
-            with_payload=True
-        )
-
-        logger.info(f"Metadata query returned {len(search_results[0])} results")
-        results = []
-        for result in search_results[0]:
-            result_data = {
-                'id': result.id,
-                'payload': result.payload
-            }
-            results.append(result_data)
-            logger.debug(f"Result ID: {result.id}, Source: {result.payload.get('source_file', 'Unknown')}")
-
-        return results
-
-    except Exception as e:
-        logger.error(f"Error during metadata query: {str(e)}")
-        return []
-
-
 def scan_mdx_files(docs_directory: str) -> List[str]:
     """
     Create function to recursively scan my-website/docs directory for .mdx files [US2].
@@ -1220,8 +997,8 @@ def create_cli_parser():
     parser.add_argument(
         '--docs-dir',
         type=str,
-        default='./my_project/frontend/docs',
-        help='Directory containing MDX files (default: ./my_project/frontend/docs)'
+        default=_DEFAULT_DOCS_DIR,
+        help='Directory containing MDX files (default: ../frontend/docs relative to script)'
     )
     parser.add_argument(
         '--chunk-size',
@@ -1291,8 +1068,7 @@ def main():
     config = load_config()
 
     # Update config with CLI arguments if provided
-    if args.docs_dir != './my-website/docs':
-        config['docs_directory'] = args.docs_dir
+    config['docs_directory'] = args.docs_dir
     if args.chunk_size != 512:
         config['chunk_size'] = args.chunk_size
     if args.chunk_overlap != 50:

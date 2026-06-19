@@ -6,7 +6,7 @@
 my_project/
 ├── backend/          # FastAPI + OpenAI Agents SDK RAG chatbot (Python 3.13, uv)
 ├── frontend/         # Docusaurus textbook site + ChatKit widget (React 19, npm)
-└── ingestion/        # MDX → Cohere embeddings → Qdrant (Python 3.13, pip)
+└── ingestion/        # MDX → Cohere embeddings → Qdrant (Python 3.13, uv)
 ```
 
 ## Commands
@@ -15,14 +15,14 @@ my_project/
 |---|---|---|
 | Install backend deps | `uv sync` | `my_project/backend` |
 | Run backend API | `uv run uvicorn app:app --reload --port 8000` | `my_project/backend` |
-| Run ingestion | `python ingest_book.py` (pip deps in `requirements.txt`) | `my_project/ingestion` |
+| Install ingestion deps | `uv sync` | `my_project/ingestion` |
+| Run ingestion | `uv run python ingest_book.py --docs-dir=../frontend/docs` | `my_project/ingestion` |
 | Install frontend deps | `npm install` | `my_project/frontend` |
 | Run frontend dev | `npm run start` | `my_project/frontend` |
 | Frontend typecheck | `npm run typecheck` (runs `tsc`) | `my_project/frontend` |
 | Frontend build | `npm run build` | `my_project/frontend` |
-| Backend tests | `uv run pytest` or `python -m pytest` | `my_project/backend` |
-| Ingestion unit tests | `python -m unittest test_ingest_book.py` | `my_project/ingestion` |
-| Ingestion E2E test | `python e2e_test.py` | `my_project/ingestion` |
+| Backend tests | `uv run pytest tests/` | `my_project/backend` |
+| Ingestion tests | `uv run pytest tests/` | `my_project/ingestion` |
 
 ## Entry points and wiring
 
@@ -31,7 +31,7 @@ my_project/
 - **LLM provider fallback** (in `config.py`): `LLM_API_KEY` → `OPENROUTER_API_KEY` → `GEMINI_API_KEY`. Change model via `LLM_MODEL` env var only.
 - **ChatKit bridge**: `my_project/backend/chatkit_server.py` — `CustomChatKitServer` extends `ChatKitServer[RequestContext]`. Overrides `respond()`. ChatKit SDK handles thread management; SQLite store persists conversations.
 - **Frontend Chat widget**: `my_project/frontend/src/theme/Root.tsx` globally includes `ChatKitWidget`. Uses `@openai/chatkit-react`. Custom fetch interceptor (`chatkit-fetch.ts`) injects page context (`url`, `title`, `headings`) into ChatKit protocol metadata.
-- **Ingestion default path gotcha**: `ingest_book.py` defaults to `./my-website/docs` but actual content is at `./my_project/frontend/docs`. Always pass `--docs-dir=./my_project/frontend/docs`.
+- **Ingestion default path gotcha**: `ingest_book.py` defaults to `./my_project/frontend/docs` (auto-detected from script location). The old default was `./my-website/docs` — if running from a non-standard CWD, pass `--docs-dir` explicitly.
 
 ## Framework/toolchain quirks
 
@@ -72,9 +72,8 @@ Template at `.specify/templates/phr-template.prompt.md`. Must fill all YAML plac
 
 ## Testing quirks
 
-- **Backend tests use FastAPI TestClient** (`test_streaming.py`). They rely on real API keys if the agent/retrieval actually runs — no mocking currently. Test is contract-only.
-- **Ingestion tests use `unittest`** (not pytest). Run with `python -m unittest test_ingest_book.py`.
-- **`test_performance.py`** is a placeholder (empty `pass`). Skip in test runs.
+- **Backend tests** use pytest with FastAPI TestClient and extensive mocking. No real API keys required. **99 tests**.
+- **Ingestion tests** use pytest (in `my_project/ingestion/tests/`). Run with `uv run pytest tests/`. **79 tests**.
 - **No CI test execution**: `.github/workflows/deploy.yml` only deploys backend; does not run tests.
 
 ## Deployment
@@ -90,3 +89,7 @@ Template at `.specify/templates/phr-template.prompt.md`. Must fill all YAML plac
 - `config.py:load_dotenv()` loads `my_project/backend/.env` or `my_project/.env` — not root `.env`.
 - ChatKit SQLite DB (`chatkit.db`) is gitignored and auto-created at runtime.
 - The constitution at `.specify/memory/constitution.md` is an **unfilled template** — all sections are placeholders.
+- **Embedding cache**: `retrieval.py` has an in-memory dict cache (`_embed_cache`) with 300s TTL. Cache is process-local and lost on restart.
+- **Chunking**: `ingest_book.py` uses `tiktoken`-aware paragraph/sentence-boundary chunking, not character-based splitting.
+- **Guardrails in ChatKit**: `chatkit_server.py` catches `InputGuardrailTripwireTriggered` and returns a friendly message (code `"custom"`, `allow_retry=False`).
+- **Input validation**: `/chat` endpoint validates `user_id` and `session_id` in addition to `query`.

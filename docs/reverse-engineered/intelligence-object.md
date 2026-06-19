@@ -1,11 +1,11 @@
 # Physical AI & Humanoid Robotics Textbook — Reusable Intelligence
 
-**Version**: 2.0 (Extracted from Codebase)
-**Date**: 2026-06-18
+**Version**: 3.0 (Extracted from Codebase)
+**Date**: 2026-06-19
 
 ## Overview
 
-This document captures the reusable intelligence embedded in the RAG chatbot textbook codebase — patterns, decisions, and expertise applicable to any project combining LLMs with domain-specific knowledge bases.
+This document captures the reusable intelligence embedded in the codebase — patterns, decisions, and expertise applicable to any project combining LLMs with domain-specific knowledge bases. It reflects the actual codebase as of v3.0, with corrections for token-based chunking, uv package management, comprehensive test suite (99 backend + 79 ingestion), and the complete CI/CD pipeline.
 
 ---
 
@@ -16,16 +16,16 @@ This document captures the reusable intelligence embedded in the RAG chatbot tex
 **Persona**: You are a backend engineer building a Retrieval-Augmented Generation system where the LLM must only answer from provided context, and user input must be validated at every layer.
 
 **Questions to ask before implementing RAG**:
-- What are the trust boundaries? (User → API → Guardrail → LLM → Response)
+- What are the trust boundaries? (User -> API -> Guardrail -> LLM -> Response)
 - What happens at each layer when input is invalid?
 - How do you prevent prompt injection while preserving legitimate queries?
 - What's the fallback behavior when retrieval returns nothing?
 
 **Principles**:
-- **Layer 1 — Input Sanitization**: Strip HTML/JS, block SQL patterns, block code execution patterns, block path traversal. Run this on every user input before anything else.
-- **Layer 2 — Guardrail**: A lightweight LLM call to classify query relevance. Must fail-open (let query through on error) to avoid blocking due to transient LLM failures.
-- **Layer 3 — RAG Grounding**: Only the retrieved chunks + the user query reach the main LLM. The system prompt explicitly instructs the LLM to refuse answering if the answer isn't in the chunks.
-- **Layer 4 — Response**: The LLM output is streamed directly to the client. No post-processing (assumes LLM won't produce harmful output when grounded).
+- **Layer 1 -- Input Sanitization**: Strip HTML/JS, block SQL patterns, block code execution patterns, block path traversal. Run this on every user input before anything else.
+- **Layer 2 -- Guardrail**: A lightweight LLM call to classify query relevance. Must fail-open (let query through on error) to avoid blocking due to transient LLM failures.
+- **Layer 3 -- RAG Grounding**: Only the retrieved chunks + the user query reach the main LLM. The system prompt explicitly instructs the LLM to refuse answering if the answer isn't in the chunks.
+- **Layer 4 -- Response**: The LLM output is streamed directly to the client. No post-processing (assumes LLM won't produce harmful output when grounded in provided content).
 
 **Implementation Pattern** (extracted from codebase):
 ```python
@@ -46,7 +46,6 @@ async def check_query_relevance(ctx, agent, input_text):
 
 # Layer 3: RAG Grounding (chatkit_server.py + agent.py)
 relevant_chunks = await get_relevant_chunks(search_query)
-# Dynamic instructions inject chunks into system prompt
 def book_knowledge_instructions(ctx, agent):
     chunks_text = format_chunks(ctx.context["book_chunks"])
     return f"You must answer based ONLY on this content:\n{chunks_text}"
@@ -65,7 +64,7 @@ async for event in stream.stream_events():
 - Educational assistants where answer correctness is critical
 
 **Contraindications**:
-- Open-domain chatbots (no grounding needed, guardrail would be too restrictive)
+- Open-domain chatbots (no grounding needed, guardrail restricts too much)
 - Systems where the LLM needs access to external tools (guardrail may block tool-use queries)
 
 ---
@@ -77,15 +76,15 @@ async for event in stream.stream_events():
 **Questions to ask before implementing ChatKit**:
 - What's the threading model? (ChatKit manages threads server-side; the `respond()` method is called per user message)
 - How does conversation history flow into the LLM context? (ChatKit provides the thread; you load items, format as text, inject into the prompt)
-- How do you handle streaming errors without corrupting the conversation state? (Once SSE events are sent to ChatKit, an ErrorEvent would break the conversation)
-- What context does the widget provide? (ChatKit protocol carries metadata; your fetch interceptor can inject anything)
+- How do you handle streaming errors without corrupting the conversation state? (Once SSE events are sent, an ErrorEvent would break the conversation)
+- What context does the widget provide? (ChatKit protocol carries metadata; your fetch interceptor can inject page context)
 
 **Principles**:
-- **Extend ChatKitServer, don't wrap it**: Your custom server inherits from `ChatKitServer[RequestContext]` and overrides `respond().` ChatKit handles thread management; you focus on AI logic.
-- **History as prompt prefix**: Load the last N thread items, format with role prefixes (User/Assistant/Tool), prepend to the system prompt. This gives the LLM conversational memory without ChatKit managing it.
+- **Extend ChatKitServer, don't wrap it**: Your custom server inherits from `ChatKitServer[RequestContext]` and overrides `respond()`. ChatKit handles thread management; you focus on AI logic.
+- **History as prompt prefix**: Load the last N thread items, format with role prefixes (User/Assistant/Tool/Widget), prepend to the system prompt.
 - **Transient agent clone**: Don't modify the global singleton agent. Clone it with dynamic instructions per-request to avoid shared state.
-- **Error isolation with sentinel flag**: Track `sent_any_event`. If an error occurs before any event was sent, yield `ErrorEvent(code="custom", message=..., allow_retry=True)`. After events are sent, log the error but don't yield — the client has partial output and an ErrorEvent would corrupt the thread state.
-- **Page context injection**: The frontend's fetch interceptor injects page metadata into the ChatKit protocol body; you extract it from `params.input.metadata.pageContext` in the `/chatkit` route handler.
+- **Error isolation with sentinel flag**: Track `sent_any_event`. If an error occurs before any event was sent, yield `ErrorEvent(code="custom", allow_retry=True)`. After events are sent, log the error but don't yield -- partial output is better than corruption.
+- **Page context injection**: The frontend's fetch interceptor injects page metadata into the ChatKit protocol body; you extract it from `params.input.metadata.pageContext`.
 
 **Implementation Pattern** (extracted from codebase):
 ```python
@@ -95,7 +94,7 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
         if not input_user_message:
             return
 
-        # 1. Load history
+        # 1. Load conversation history (last 10 items)
         previous_items = await self.store.load_thread_items(
             thread.id, after=None, limit=10, order="desc", context=context
         )
@@ -105,8 +104,8 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
         page_context_str = format_page_context(context.page_context)
         user_query = extract_text(input_user_message.content)
 
-        # 3. RAG retrieval with context grounding
-        search_query = f"{context.page_context.title}: {user_query}" if context.page_context else user_query
+        # 3. RAG retrieval grounded in page context
+        search_query = f"{context.page_context.title}: {user_query}"
         relevant_chunks = await get_relevant_chunks(search_query)
 
         # 4. Dynamic instructions with history + page context
@@ -114,7 +113,7 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
             base = book_knowledge_instructions(ctx, agent)
             return f"{history_str}\n{page_context_str}\n{base}"
 
-        # 5. Clone agent with dynamic instructions
+        # 5. Clone agent with dynamic instructions (never mutate global)
         run_agent = Agent(
             name=book_knowledge_agent.name,
             instructions=dynamic_instructions,
@@ -123,14 +122,13 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
             input_guardrails=book_knowledge_agent.input_guardrails
         )
 
-        # 6. Stream with error isolation
+        # 6. Stream with error isolation sentinel
         result = Runner.run_streamed(run_agent, user_query, context=agent_run_context)
         sent_any_event = False
-        async for event in stream_agent_response(agent_ctx, result):
-            yield event
-            sent_any_event = True
-
-        # 7. ErrorEvent only if no events streamed yet
+        try:
+            async for event in stream_agent_response(agent_ctx, result):
+                yield event
+                sent_any_event = True
         except Exception as e:
             if not sent_any_event:
                 yield ErrorEvent(code="custom", message=str(e)[:200], allow_retry=True)
@@ -158,18 +156,16 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
 - How do you keep the prompt within the model's context window?
 
 **Principles**:
-- **Static base + dynamic injection**: Define the base agent with static instructions using a function, not a string. The function reads from `RunContextWrapper.context` at call time.
+- **Static base + dynamic injection**: Define the base agent with instructions as a function, not a string. The function reads from `RunContextWrapper.context` at call time.
 - **Clone agents for per-request customization**: The OpenAI Agents SDK lets you clone an `Agent` with overridden `instructions`. This is safer than mutating the global singleton.
 - **Prepend history, not append**: Conversation history goes before the chunk context, so the LLM sees the conversation flow first, then the grounding content.
-- **Page context as early priming**: If the user is on a specific page, prepend "STUDENT CONTEXT: Viewing page X" to help the LLM prioritize relevant content before it even sees the chunks.
-- **Token budget**: Set `max_tokens` on the output. The input context uses the model's full context window (in this case ~32K for Qwen 3), so ensure your combined history + chunks + instructions fit.
+- **Page context as early priming**: If the user is on a specific page, prepend "STUDENT CONTEXT: Viewing page X" to help the LLM prioritize relevant content.
+- **Token budget**: Set `max_tokens` on output. The input context uses the model's full context window (~32K for Qwen 3-Coder), so ensure combined history + chunks + instructions fit.
 
 **Implementation Pattern** (extracted from codebase):
 ```python
 # Static base as function (agent.py)
 def book_knowledge_instructions(ctx: RunContextWrapper, agent: Agent) -> str:
-    """Called by the Agent SDK when the LLM needs instructions.
-    ctx.context contains the per-request data."""
     book_chunks = ctx.context.get("book_chunks", [])
     chunks_text = format_chunks(book_chunks)
     return f"""
@@ -186,7 +182,7 @@ def dynamic_instructions(ctx: RunContextWrapper, agent: Agent) -> str:
 # Clone agent for this request only
 run_agent = Agent(
     name=book_knowledge_agent.name,
-    instructions=dynamic_instructions,  # ← new function reference
+    instructions=dynamic_instructions,
     model=book_knowledge_agent.model,
     model_settings=book_knowledge_agent.model_settings,
     input_guardrails=book_knowledge_agent.input_guardrails
@@ -218,10 +214,10 @@ run_agent = Agent(
 **Principles**:
 - **Well-defined event schema**: Use a discriminated union type (`SSEMessage.type = "token" | "final" | "error"`). The client switches behavior based on `type`.
 - **One `data:` line per event**: SSE format requires `data: <json>\n\n`. Each yield produces exactly one event.
-- **Empty response detection**: Track `tokens_yielded` counter. If zero events were yielded after the stream completes, emit an explicit `type: "error"` event with a user-friendly message. This prevents silent failures.
-- **Guardrail errors are user-friendly**: When the guardrail triggers, emit `type: "error"` with "Off-topic query detected" rather than a raw exception message.
-- **StreamingResponse for FastAPI**: Return `StreamingResponse(chat_stream_generator(), media_type="text/event-stream")`. FastAPI handles the SSE headers and transfer encoding.
-- **Error boundaries**: Wrap the generator in try/except. Catch all exceptions and yield error events instead of crashing the stream. The client always gets a complete SSE stream.
+- **Empty response detection**: Track `tokens_yielded` counter. If zero events were yielded after the stream completes, emit an explicit `type: "error"` event with a user-friendly message.
+- **Guardrail errors are user-friendly**: When the guardrail triggers, emit `type: "error"` with clear message rather than a raw exception.
+- **StreamingResponse for FastAPI**: Return `StreamingResponse(chat_stream_generator(), media_type="text/event-stream")`. FastAPI handles SSE headers.
+- **Error boundaries**: Wrap the generator in try/except. Catch all exceptions and yield error events instead of crashing the stream.
 
 **Implementation Pattern** (extracted from codebase):
 ```python
@@ -244,12 +240,11 @@ async def chat_stream_generator(request: ChatRequest) -> AsyncGenerator[str, Non
                     tokens_yielded += 1
                     message = SSEMessage(type="token", content=delta)
                     yield f"data: {message.model_dump_json()}\n\n"
-
             elif event.type == "run_item_stream_event":
-                # ... handle final output ...
+                # Extract final output and yield "final" event
+                pass
 
         if tokens_yielded == 0:
-            # Empty response — yield error instead of silent failure
             error_message = SSEMessage(type="error", content="The AI generated an empty response.")
             yield f"data: {error_message.model_dump_json()}\n\n"
 
@@ -278,39 +273,46 @@ async def chat_endpoint(request: ChatRequest):
 
 ### Skill 5: Retry with Exponential Backoff for External APIs
 
-**Persona**: You are integrating with external APIs (Cohere, Qdrant, OpenAI) where transient failures (rate limits, network blips, server errors) must be handled transparently.
+**Persona**: You are integrating with external APIs (Cohere, Qdrant) where transient failures (rate limits, network blips, server errors) must be handled transparently.
 
 **Questions to ask before implementing retry logic**:
-- Are the failures transient or permanent? (Rate limit = transient; bad API key = permanent — don't retry)
+- Are the failures transient or permanent? (Rate limit = transient; bad API key = permanent -- don't retry)
 - What's the retry budget? (Total time the user waits before getting a response)
 - Should you fail-fast or degrade gracefully? (RAG can return empty chunks and still produce a response)
-- What backoff strategy prevents thundering herd? (Exponential backoff with jitter)
+- What backoff strategy prevents thundering herd? (Exponential backoff with optional jitter)
 
 **Principles**:
 - **Only retry on transient failures**: Network timeouts, 429 (rate limit), 503 (service unavailable). Don't retry on 4xx client errors.
 - **Exponential backoff**: `delay = base * 2^attempt` (1s, 2s, 4s). Add jitter in production to prevent synchronized retries.
-- **Graceful degradation**: If retrieval retries are exhausted, return empty results instead of propagating the error. The LLM can still respond (poorly, but it doesn't crash).
-- **Max retries = 3**: Balances reliability with latency. Beyond 3 retries (~7s cumulative), the user experience degrades too much.
-- **Log every attempt**: Each retry logs a warning with the attempt number and error. Final failure logs an error.
+- **Graceful degradation**: If retrieval retries are exhausted, return empty results instead of propagating the error.
+- **Max retries = 3**: Balances reliability with latency. Beyond 3 retries (~7s cumulative), user experience degrades too much.
+- **Log every attempt**: Each retry logs a warning with attempt number and error. Final failure logs an error.
 
 **Implementation Pattern** (extracted from codebase):
 ```python
-# Retrieval with retry (retrieval.py)
+# Backend retrieval (retrieval.py)
 async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str, str]]:
     for attempt in range(max_retries):
         try:
-            # Try the operation
             response = await co.embed(texts=[query], model="embed-multilingual-v3.0", ...)
             search_results = await qdrant_client.query_points(...)
             return relevant_chunks
-
         except Exception as e:
             logger.error(f"Attempt {attempt + 1} failed: {e}")
             if attempt == max_retries - 1:
                 logger.error("All retries exhausted")
                 return []  # Graceful degradation
-
             await asyncio.sleep(2 ** attempt)  # 1s, 2s, 4s
+
+# Ingestion retry (ingest_book.py)
+def handle_api_call_with_retry(func, *args, max_retries=3, **kwargs):
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
 ```
 
 **When to apply**:
@@ -326,22 +328,126 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str
 
 ---
 
+### Skill 6: Token-Aware Chunking with Sentence Boundaries
+
+**Persona**: You are building a text ingestion pipeline where document chunks must preserve semantic boundaries while respecting token limits for embedding models.
+
+**Questions to ask before implementing chunking**:
+- What's the embedding model's token limit? (Cohere embed-multilingual-v3.0: 512 tokens)
+- Should chunks respect paragraph/sentence boundaries? (Yes - improves retrieval quality)
+- What overlap preserves context across chunk boundaries? (Typically 10-20% of chunk size)
+- Should you use character or token counting? (Token counting is more accurate for embedding models)
+
+**Principles**:
+- **Token-aware chunking**: Use tiktoken (or equivalent) to count tokens accurately, not characters.
+- **Paragraph-first splitting**: Split on paragraph boundaries (`\n\n`) before falling back to sentence boundaries. This preserves logical content units.
+- **Sentence-boundary fallback**: For oversize paragraphs, find the nearest sentence boundary (`.`, `!`, `?`) to avoid mid-sentence cuts.
+- **Configurable overlap**: Overlap of ~10% chunk size (50 tokens for 512-token chunks) provides context continuity without excessive duplication.
+- **Semantic boundary detection**: Never split mid-sentence. Use helpers like `find_sentence_boundary()` that search backwards from the cut point.
+
+**Implementation Pattern** (extracted from codebase):
+```python
+# Token-aware chunking (ingest_book.py)
+import tiktoken
+
+def chunk_text(text: str, chunk_size: int = 512, chunk_overlap: int = 50) -> List[str]:
+    encoding = tiktoken.get_encoding("cl100k_base")
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+    chunks = []
+    current_chunk = ""
+
+    for paragraph in paragraphs:
+        combined = f"{current_chunk}\n\n{paragraph}".strip() if current_chunk else paragraph
+        combined_tokens = len(encoding.encode(combined))
+
+        if combined_tokens <= chunk_size:
+            current_chunk = combined
+        else:
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            # If paragraph is too large, split on sentence boundaries
+            para_tokens = len(encoding.encode(paragraph))
+            if para_tokens > chunk_size:
+                sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+                temp = ""
+                for sentence in sentences:
+                    proposed = f"{temp} {sentence}".strip() if temp else sentence
+                    if len(encoding.encode(proposed)) <= chunk_size:
+                        temp = proposed
+                    else:
+                        if temp:
+                            chunks.append(temp)
+                        temp = sentence
+                current_chunk = temp or ""
+            else:
+                current_chunk = paragraph
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+```
+
+**When to apply**:
+- Any RAG system needing document chunking
+- Embedding pipelines where chunk size affects retrieval quality
+- Multilingual content (token counting is language-agnostic)
+
+**Contraindications**:
+- Very short documents that fit in a single chunk (no splitting needed)
+- Systems using embedding models with very large context windows (e.g., 8192 tokens)
+
+---
+
+### Skill 7: In-Memory Sliding Window Rate Limiter
+
+**Persona**: You need to protect your API from abuse with a lightweight, process-local rate limiter that doesn't require external infrastructure (Redis, etc.).
+
+**Principles**:
+- **Sliding window**: Track timestamps per IP; remove entries outside the window (e.g., 60s). Count remaining entries. Block if > limit.
+- **Process-local**: Simple dict-based implementation. Lost on restart. Not shared across instances.
+- **Early rejection**: Return 429 with clear error message. Don't process the request.
+- **Configurable**: `max_requests` and `window_seconds` should be configurable per route or globally.
+
+**Implementation Pattern** (extracted from codebase):
+```python
+# Rate limiter (app.py)
+class InMemoryRateLimiter:
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._requests: dict[str, list[float]] = {}
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.monotonic()
+        timestamps = self._requests.get(key, [])
+        timestamps = [t for t in timestamps if now - t < self.window_seconds]
+        if len(timestamps) >= self.max_requests:
+            return False
+        timestamps.append(now)
+        self._requests[key] = timestamps
+        return True
+```
+
+---
+
 ## Architecture Decision Records (Inferred)
 
 ### ADR-001: Chosen OpenRouter over Direct OpenAI API
 
 **Status**: Accepted
 
-**Context**:
-The system needs LLM access for both the primary RAG agent and the guardrail judge agent. Direct OpenAI API would be the simplest choice, but the project targets a diverse user base with different LLM preferences and budget constraints.
+**Context**: The system needs LLM access for both the primary RAG agent and the guardrail judge agent. Direct OpenAI API would be the simplest choice, but the project targets a diverse user base with different LLM preferences and budget constraints.
 
 **Decision**: Route all LLM calls through OpenRouter using the OpenAI-compatible v1 API.
 
 **Rationale** (inferred from code):
 1. `_build_openai_client()` in `agent.py` sets `base_url=Config.LLM_BASE_URL` which defaults to `https://openrouter.ai/api/v1`
 2. `default_headers` includes `HTTP-Referer` and `X-Title`, which are OpenRouter-specific identity headers
-3. `Config.LLM_API_KEY` has a fallback chain: `LLM_API_KEY` → `OPENROUTER_API_KEY` → `GEMINI_API_KEY`, suggesting OpenRouter is primary with Gemini as fallback
-4. Default model `qwen/qwen3-coder` is a model available through OpenRouter, not directly from OpenAI
+3. `Config.LLM_API_KEY` has a fallback chain: `LLM_API_KEY` -> `OPENROUTER_API_KEY` -> `GEMINI_API_KEY`, suggesting OpenRouter is primary with Gemini as fallback
+4. Default model `qwen/qwen3-coder` is available through OpenRouter, not directly from OpenAI
 
 **Consequences**:
 
@@ -356,45 +462,43 @@ The system needs LLM access for both the primary RAG agent and the guardrail jud
 - Dependency on a third-party proxy (OpenRouter availability affects system availability)
 - OpenRouter-specific headers required (`HTTP-Referer`, `X-Title`)
 
-### ADR-002: Chosen Character-Based Chunking over Token-Based
+### ADR-002: Chosen Token-Based Chunking over Character-Based
 
-**Status**: Accepted
+**Status**: Accepted (v3.0 uses tiktoken)
 
-**Context**:
-The ingestion pipeline needs to split textbook content into chunks for embedding. Token-based chunking (using a proper tokenizer) would be more accurate but adds a dependency.
+**Context**: The ingestion pipeline needs to split textbook content into chunks for embedding. Character-based chunking (512 chars) was originally considered but token-based chunking using tiktoken provides more accurate sizing for embedding model limits.
 
-**Decision**: Use character-based chunking (512 chars, 50 overlap) with a note that token-based chunking would be better in production.
+**Decision**: Use token-aware chunking via tiktoken (`cl100k_base` encoding) with paragraph-first splitting and sentence-boundary fallback.
 
 **Rationale** (inferred from code):
-1. `chunk_text()` in `ingest_book.py` uses simple string slicing: `text[start:end]`
-2. Comment in code: *"For simplicity, we're using character-based chunking instead of token-based. In a production system, we'd use a proper tokenizer."*
-3. The decision prioritizes simplicity and avoiding an additional dependency (tiktoken)
+1. `chunk_text()` in `ingest_book.py` uses `tiktoken.get_encoding("cl100k_base")` for token counting
+2. Paragraph boundaries are the primary split point; sentence boundaries are the fallback for oversized paragraphs
+3. Configurable chunk_size (default 512 tokens) and chunk_overlap (default 50 tokens)
 
 **Consequences**:
 
 **Positive**:
-- No additional dependency
-- Simple, debuggable logic
-- Fast — no tokenization overhead
+- Accurate token counting matching Cohere's embedding model limits
+- Paragraph-aware splitting preserves logical content units
+- Sentence-boundary detection prevents mid-sentence cuts
+- Configurable overlap provides context continuity
 
 **Negative**:
-- Chunks may break in the middle of words or sentences
-- Character count != token count; 512 chars is ~128-200 tokens (varies by language)
-- Semantic boundaries (paragraphs, sections) are not respected
-- Overlap of 50 chars (~12 tokens) may be insufficient for context preservation
+- Additional dependency (tiktoken)
+- Tokenization overhead vs. simple string slicing
+- Sentence-boundary detection is regex-based (may fail with unusual punctuation)
 
 ### ADR-003: Chosen SQLite over PostgreSQL for ChatKit Store
 
 **Status**: Accepted
 
-**Context**:
-The ChatKit protocol requires persistent storage for conversation threads, items, and attachments. Options include SQLite, PostgreSQL, or in-memory storage.
+**Context**: The ChatKit protocol requires persistent storage for conversation threads, items, and attachments. Options include SQLite, PostgreSQL, or in-memory storage.
 
 **Decision**: Use SQLite via aiosqlite for ChatKit conversation persistence.
 
 **Rationale** (inferred from code):
-1. Conversation data is single-process and low-volume (one backend instance, moderate number of users)
-2. SQLite requires zero configuration — no database server to set up, no connection pooling
+1. Conversation data is single-process and low-volume (one backend instance, moderate users)
+2. SQLite requires zero configuration -- no database server to set up, no connection pooling
 3. The ChatKit `Store` interface is simple (CRUD on 3 tables), well within SQLite's capabilities
 4. File-based DB (`chatkit.db`) is easy to backup, reset, and inspect (debug script: `scripts/read_db.py`)
 
@@ -404,10 +508,10 @@ The ChatKit protocol requires persistent storage for conversation threads, items
 - Zero infrastructure: no DB server, no connection pool, no migrations
 - Single file: easy to backup, reset, or inspect
 - Fast for single-process access
-- Automatic deployment: file is created on first use
+- Automatic deployment: file created on first use
 
 **Negative**:
-- No horizontal scaling: multiple backend instances would need separate DB files
+- No horizontal scaling: multiple backend instances need separate DB files
 - Write contention under high concurrency (SQLite uses file-level locking)
 - No built-in replication or high availability
 - Schema changes require manual migration (no Alembic/Flyway)
@@ -416,8 +520,7 @@ The ChatKit protocol requires persistent storage for conversation threads, items
 
 **Status**: Accepted
 
-**Context**:
-The `load_thread_items()` and `load_threads()` methods need pagination. ChatKit uses a cursor-based pattern with `after` and `limit`.
+**Context**: The `load_thread_items()` and `load_threads()` methods need pagination. ChatKit uses a cursor-based pattern with `after` and `limit`.
 
 **Decision**: Load all items into memory, then paginate in Python code.
 
@@ -428,7 +531,6 @@ items = [thread_item_adapter.validate_json(row[0]) for row in rows]
 # Memory-based pagination in Python
 page_data = items[start_idx:start_idx + limit]
 ```
-
 1. Conversation threads are typically short (< 100 items per thread)
 2. Simpler than implementing cursor-based SQL pagination with `WHERE id > ? LIMIT ?`
 3. No SQL complexity for the `after` cursor (ChatKit uses the `item.id` as cursor, which is a UUID, not a sequential integer)
@@ -444,11 +546,37 @@ page_data = items[start_idx:start_idx + limit]
 - Won't scale to threads with thousands of items (memory pressure)
 - Every pagination request loads the full data set (wasteful for deep pagination)
 
+### ADR-005: Chosen uv over pip for Python Package Management
+
+**Status**: Accepted
+
+**Context**: Python package management options include pip (standard), pipenv, poetry, and uv (Rust-based). The project targets Python 3.13 and needs deterministic builds.
+
+**Decision**: Use uv for both backend and ingestion sub-projects.
+
+**Rationale**:
+1. Both `pyproject.toml` files use uv (no `requirements.txt` or `setup.py` found)
+2. Dockerfile uses `uv sync --frozen --no-group dev`
+3. CI workflow uses `astral-sh/setup-uv@v5` GitHub Action
+4. uv is significantly faster than pip for dependency resolution
+
+**Consequences**:
+
+**Positive**:
+- Fast dependency resolution (Rust-based)
+- Deterministic builds via `uv.lock`
+- Virtual environment management built-in
+- Growing ecosystem adoption
+
+**Negative**:
+- Requires `uv` to be installed (not included in Python stdlib)
+- Smaller community than pip
+
 ---
 
 ## Code Patterns & Conventions
 
-### Pattern 1: async def + aiosqlite for All Database Operations
+### Pattern 1: `async def` + `aiosqlite` for All Database Operations
 
 **Observed in**: `store.py`
 
@@ -500,30 +628,100 @@ except ValueError as e:
 
 **Observed in**: `ChatKitWidget.tsx`
 
-The `mouseup` event listener captures text selection, gets bounding rect via `Range.getBoundingClientRect()`, and positions a floating button above the selection. On click, it calls `setComposerValue()` to pre-fill the ChatKit composer.
+The `mouseup` event listener captures text selection, gets bounding rect via `Range.getBoundingClientRect()`, and positions a floating button above the selection. On click, it calls a callback to pre-fill the ChatKit composer.
+
+### Pattern 6: Guardrail Fail-Open
+
+**Observed in**: `agent.py`
+
+```python
+try:
+    result = await Runner.run(judge_agent, input_text)
+    is_relevant = 'yes' in result.final_output.lower()
+except Exception as e:
+    logger.warning(f"Guardrail error, failing open: {e}")
+    is_relevant = True  # Fail open — let query through
+```
+
+**Why**: A guardrail error should never block a legitimate user query. Better to let a potentially off-topic query through than to block everything.
+
+### Pattern 7: Lazy Initialization with Sentinel
+
+**Observed in**: `store.py`
+
+```python
+def _ensure_initialized(self):
+    if self._initialized:
+        return
+    # Create tables
+    self._initialized = True
+```
+
+**Why**: Tables are created on first database access, not at import time. This avoids coupling initialization order and simplifies testing (each test gets a fresh DB).
+
+### Pattern 8: Transient Agent Clone per Request
+
+**Observed in**: `chatkit_server.py`
+
+```python
+run_agent = Agent(
+    name=book_knowledge_agent.name,
+    instructions=dynamic_instructions,  # New function reference per request
+    model=book_knowledge_agent.model,
+    model_settings=book_knowledge_agent.model_settings,
+    input_guardrails=book_knowledge_agent.input_guardrails
+)
+```
+
+**Why**: The global `book_knowledge_agent` has static instructions. By cloning with a new `instructions` function per request, each user gets personalized context without shared state.
+
+### Pattern 9: Error Isolation Sentinel in Streaming
+
+**Observed in**: `chatkit_server.py`
+
+```python
+sent_any_event = False
+try:
+    async for event in stream_agent_response(agent_ctx, result):
+        yield event
+        sent_any_event = True
+except Exception as e:
+    if not sent_any_event:
+        yield ErrorEvent(code="custom", message=str(e)[:200], allow_retry=True)
+```
+
+**Why**: Once SSE events are sent to the client, an ErrorEvent would corrupt the conversation thread. The sentinel flag ensures errors are only surfaced if no prior output was streamed.
+
+---
 
 ## Lessons Learned
 
 ### What Worked Well
 
-1. **Three-layer validation architecture**: Input sanitization → Guardrail → RAG grounding prevented prompt injection, off-topic queries, and hallucinated answers
-2. **Dynamic instructions pattern**: Using function-based instructions that read from `RunContextWrapper.context` enabled per-request customization without agent redefinition
+1. **Three-layer validation architecture**: Input sanitization -> Guardrail -> RAG grounding prevented prompt injection, off-topic queries, and hallucinated answers
+2. **Dynamic instructions pattern**: Function-based instructions that read from `RunContextWrapper.context` enabled per-request customization without agent redefinition
 3. **Error isolation in ChatKit**: The `sent_any_event` flag pattern prevented corrupted conversation state when errors occurred mid-stream
-4. **Lazy SQLite initialization**: `_ensure_initialized()` called at the start of every public method automatically created tables on first use, avoiding the need for explicit initialization in the lifespan
+4. **Lazy SQLite initialization**: `_ensure_initialized()` at the start of every public method automatically created tables on first use
 5. **Gradient-based CTA buttons**: The `linear-gradient(135deg, #6366F1, #8B5CF6)` + lift on hover + scale on active created a tactile, premium feel
+6. **Comprehensive test coverage**: 99 backend tests + 79 ingestion tests provide strong regression protection
+7. **CI with test execution**: GitHub Actions workflow runs all tests before deploying, preventing broken code from reaching production
 
 ### What Could Be Improved
 
-1. **No test execution in CI**: The deploy workflow deploys without running any tests — broken code can reach production
-2. **Duplicated RAG orchestration**: The agent-streaming pipeline (get_chunks → run_agent → stream_events) is duplicated between `app.py` (chat_stream_generator) and `chatkit_server.py` (respond method). Should be extracted into a shared service
-3. **Missing citation tracking**: `AgentResponse.citations` is defined but populated with only `source_file` — no actual citation context (page numbers, section titles)
-4. **Connection management**: Cohere and Qdrant clients are initialized at module level with no explicit lifecycle management (open on import, never closed)
+1. **Duplicated RAG orchestration**: The agent-streaming pipeline (get_chunks -> run_agent -> stream_events) is duplicated between `app.py` (`chat_stream_generator`) and `chatkit_server.py` (`respond` method). Should be extracted into a shared service
+2. **Missing citation tracking**: `AgentResponse.citations` is defined but populated with only `source_file` -- no actual citation context (page numbers, section titles)
+3. **Connection management**: Cohere and Qdrant clients are initialized at module level with no explicit lifecycle management (open on import, never closed)
+4. **No structured logging**: Current logging uses plain text format; structured JSON with correlation IDs would enable log aggregation
+5. **In-memory rate limiter**: Process-local and lost on restart; not effective with multiple backend instances
 
 ### What to Avoid in Future Projects
 
 1. **Committing API keys**: The `.env` file was committed before being gitignored. Always add sensitive files to `.gitignore` before the first commit
-2. **Char-based chunking for production**: Character-based chunking doesn't respect sentence boundaries. Use token-based chunking (tiktoken) or semantic chunking in production
-3. **Deprecated CLI flags**: The Dockerfile used `--no-dev` which was deprecated in a newer uv version. Pin tool versions or use forward-compatible flags
+2. **Dead code**: The `initialize_agent()` function in `agent.py` is defined but never called. Remove unused code during development, not after
+3. **Missing package `__init__.py`**: Works via implicit namespace packages in Python 3.13 but is non-standard and may break with some tooling
+4. **No `.env.example`**: New contributors have no template for required environment variables, slowing onboarding
+
+---
 
 ## Reusability Assessment
 
@@ -531,8 +729,9 @@ The `mouseup` event listener captures text selection, gets bounding rect via `Ra
 
 1. **`utils/validation.py`**: Input sanitization functions are generic enough for any web API
 2. **`config.py` pattern**: Class-based config with classmethod validation is portable to any Python project
-3. **`models/chat.py`** schemas: BaseModel types for RAG, SSE, and health check are reusable templates
+3. **`models/chat.py` schemas**: BaseModel types for RAG, SSE, and health check are reusable templates
 4. **`retrieval.py` retry pattern**: The exponential backoff + graceful degradation approach is reusable in any async API client
+5. **Rate limiter pattern**: `InMemoryRateLimiter` is lightweight and portable to any FastAPI app
 
 ### Patterns Worth Generalizing
 
@@ -540,9 +739,11 @@ The `mouseup` event listener captures text selection, gets bounding rect via `Ra
 2. **ChatKit protocol bridge with error isolation**: Create a skill for the CustomChatKitServer pattern with sentinel flag error handling
 3. **Multi-layer RAG validation**: Create a skill documenting the 4-layer validation architecture
 4. **SSE streaming with empty response detection**: Create a skill for the SSE event schema + empty response handling pattern
+5. **Token-aware chunking with sentence boundaries**: Create a skill for the tiktoken-based chunking approach
 
 ### Domain-Specific (Not Reusable)
 
 1. **MDX chunking pipeline**: Specific to educational content in Docusaurus/MDX format
 2. **Module cards content**: The 4 specific modules (ROS 2, Gazebo, Isaac, VLA) are textbook-specific
 3. **Futuristic dark theme**: The specific color palette and glassmorphism effects are tied to this project's brand
+4. **Guardrail domain rules**: The off-topic classifier for "physical AI / robotics" is domain-specific

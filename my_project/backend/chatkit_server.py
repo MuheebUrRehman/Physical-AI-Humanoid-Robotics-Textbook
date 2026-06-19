@@ -3,7 +3,7 @@ import asyncio
 from typing import AsyncIterator, List, Optional, Dict, Any
 from datetime import datetime
 
-from agents import Agent, Runner, RunContextWrapper
+from agents import Agent, Runner, RunContextWrapper, InputGuardrailTripwireTriggered
 from chatkit.server import ChatKitServer, ThreadMetadata, UserMessageItem, ThreadStreamEvent
 from chatkit.agents import stream_agent_response
 from chatkit.types import ErrorEvent
@@ -128,6 +128,14 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
 
         except asyncio.CancelledError:
             raise
+        except InputGuardrailTripwireTriggered:
+            logger.info("Guardrail triggered (InputGuardrailTripwireTriggered) in ChatKit respond")
+            if not sent_any_event:
+                yield ErrorEvent(
+                    code="custom",
+                    message="I can only answer questions related to Physical AI and Robotics.",
+                    allow_retry=False,
+                )
         except Exception as e:
             logger.error(f"Error in ChatKit respond loop: {str(e)}")
             # Only yield ErrorEvent if no response tokens were streamed yet.

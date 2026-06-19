@@ -1,20 +1,17 @@
 import asyncio
 import logging
 import time
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 
 import cohere
 from qdrant_client import AsyncQdrantClient
 
 from config import Config
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Initialize Cohere async client v2
 co = cohere.AsyncClientV2(api_key=Config.COHERE_API_KEY)
 
-# Initialize Qdrant async client
 qdrant_client = AsyncQdrantClient(
     url=Config.QDRANT_HOST,
     api_key=Config.QDRANT_API_KEY,
@@ -22,38 +19,58 @@ qdrant_client = AsyncQdrantClient(
     timeout=Config.QUERY_TIMEOUT
 )
 
+# In-memory embedding cache: {query: (embedding, timestamp)}
+_embed_cache: Dict[str, Tuple[List[float], float]] = {}
+_EMBED_CACHE_TTL: int = 300  # 5 minutes
+
+
+async def embed_query(query: str, max_retries: int = 3) -> List[float]:
+    """Generate embedding for a query using Cohere with in-memory caching.
+
+    Checks the TTL cache before calling the API. Cache entries expire
+    after _EMBED_CACHE_TTL seconds to handle model/configuration changes.
+    """
+    now = time.time()
+    cached = _embed_cache.get(query)
+    if cached is not None and (now - cached[1]) < _EMBED_CACHE_TTL:
+        logger.debug(f"Cache hit for query: {query[:50]}...")
+        return cached[0]
+
+    for attempt in range(max_retries):
+        try:
+            response = await co.embed(
+                texts=[query],
+                model=Config.COHERE_MODEL,
+                input_type="search_query"
+            )
+            embedding = response.embeddings.float_[0]
+            _embed_cache[query] = (embedding, time.time())
+            return embedding
+        except Exception as e:
+            logger.error(f"Attempt {attempt + 1} failed in embed_query: {e}")
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(2 ** attempt)
+
 
 async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str, str]]:
-    """
-    Retrieve relevant book chunks from Qdrant based on the user query.
+    """Retrieve relevant book chunks from Qdrant based on user query.
 
-    Args:
-        query: The user's query string
-        max_retries: Maximum number of retry attempts
-
-    Returns:
-        List of relevant text chunks from the book content
+    Returns chunks with text, source, module, chapter, and score.
+    Chunks below RELEVANCE_THRESHOLD are filtered out.
+    Delegates embedding to embed_query() to avoid code duplication
+    and leverage its caching layer.
     """
     for attempt in range(max_retries):
         try:
-            # Generate embedding for the query using Cohere v2 API with timeout
             start_time = time.time()
-            response = await co.embed(
-                texts=[query],
-                model="embed-multilingual-v3.0",
-                input_type="search_query"
-            )
+            query_embedding = await embed_query(query)
             embedding_time = time.time() - start_time
 
             if embedding_time > Config.QUERY_TIMEOUT:
-                logger.warning(f"Embedding generation took {embedding_time:.2f}s, exceeding timeout of {Config.QUERY_TIMEOUT}s")
-                continue  # Retry if timeout exceeded
+                logger.warning(f"Embedding took {embedding_time:.2f}s, exceeding timeout")
+                continue
 
-
-            # v2 response has embeddings under the float_ key
-            query_embedding = response.embeddings.float_[0]
-
-            # Perform similarity search in Qdrant with timeout
             start_time = time.time()
             search_results = await qdrant_client.query_points(
                 collection_name=Config.QDRANT_COLLECTION_NAME,
@@ -64,23 +81,23 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str
             search_time = time.time() - start_time
 
             if search_time > Config.QUERY_TIMEOUT:
-                logger.warning(f"Qdrant search took {search_time:.2f}s, exceeding timeout of {Config.QUERY_TIMEOUT}s")
-                continue  # Retry if timeout exceeded
+                logger.warning(f"Qdrant search took {search_time:.2f}s, exceeding timeout")
+                continue
 
-            # Extract text chunks with source metadata from search results
             relevant_chunks = []
             for result in search_results.points:
-                if result.payload and "text" in result.payload:
+                score = result.score if hasattr(result, 'score') else 0.0
+                if score < Config.RELEVANCE_THRESHOLD:
+                    logger.debug(f"Skipping chunk with low relevance score: {score:.3f}")
+                    continue
+
+                if result.payload and "content" in result.payload:
                     relevant_chunks.append({
-                        "text": result.payload["text"],
+                        "text": result.payload["content"],
                         "source": result.payload.get("source_file", ""),
                         "module": result.payload.get("module", ""),
-                        "chapter": result.payload.get("chapter", "")
-                    })
-                elif result.payload:
-                    relevant_chunks.append({
-                        "text": str(result.payload),
-                        "source": ""
+                        "chapter": result.payload.get("chapter", ""),
+                        "score": score
                     })
 
             return relevant_chunks
@@ -88,42 +105,7 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str
         except Exception as e:
             logger.error(f"Attempt {attempt + 1} failed in get_relevant_chunks: {e}")
             if attempt == max_retries - 1:
-                # If this was the last attempt, return empty list
-                logger.error("All retry attempts failed in get_relevant_chunks")
                 return []
-
-            # Wait before retrying (exponential backoff)
             await asyncio.sleep(2 ** attempt)
 
-    # This should not be reached, but included for safety
     return []
-
-
-async def embed_query(query: str, max_retries: int = 3) -> List[float]:
-    """
-    Generate embedding for a query using Cohere.
-
-    Args:
-        query: The query string to embed
-        max_retries: Maximum number of retry attempts
-
-    Returns:
-        List of floats representing the embedding vector
-    """
-    for attempt in range(max_retries):
-        try:
-            response = await co.embed(
-                texts=[query],
-                model="embed-multilingual-v3.0",
-                input_type="search_query"
-            )
-            return response.embeddings.float_[0]
-        except Exception as e:
-            logger.error(f"Attempt {attempt + 1} failed in embed_query: {e}")
-            if attempt == max_retries - 1:
-
-                # If this was the last attempt, re-raise the exception
-                raise
-
-            # Wait before retrying (exponential backoff)
-            await asyncio.sleep(2 ** attempt)

@@ -1,7 +1,7 @@
 # Physical AI & Humanoid Robotics Textbook — Specification
 
-**Version**: 2.0 (Reverse Engineered)
-**Date**: 2026-06-18
+**Version**: 3.0 (Reverse Engineered)
+**Date**: 2026-06-19
 **Source**: `D:\GIAIC\Q4\Hackathons\Physical-AI-Humanoid-Robotics-Textbook`
 
 ## Problem Statement
@@ -22,7 +22,7 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 - Stream LLM responses token-by-token via Server-Sent Events (SSE)
 - Maintain conversation history across sessions via ChatKit protocol with SQLite persistence
 - Reject off-topic queries via an input guardrail agent before they reach the LLM
-- Deploy backend to Hugging Face Spaces with GitHub Actions CI/CD
+- Deploy backend to Hugging Face Spaces with GitHub Actions CI/CD (including test execution)
 - Deploy frontend to Vercel
 
 ## Functional Requirements
@@ -50,13 +50,13 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 
 ### FR-4: Text Selection Query
 - **What**: Select text on any textbook page, see a floating "Ask AI" button, click it to pre-fill the ChatKit widget with the selection
-- **Inputs**: DOM `mouseup` event → selection text (>10 chars)
+- **Inputs**: DOM `mouseup` event -> selection text (>10 chars)
 - **Outputs**: ChatKit widget opens with pre-filled prompt: `Tell me more about this: "{selection}"`
 - **Side Effects**: None
 - **Success Criteria**: Selection button appears above selected text; clicking it opens chat with the selection as context
 
 ### FR-5: Content Ingestion Pipeline
-- **What**: Scan MDX files in `frontend/docs/`, convert to plain text, chunk (512 char with 50 char overlap), embed via Cohere `embed-multilingual-v3.0`, store in Qdrant `book_vectors` collection
+- **What**: Scan MDX files in `frontend/docs/`, convert to plain text, token-aware chunk (512 chars with 50 char overlap via tiktoken), embed via Cohere `embed-multilingual-v3.0`, store in Qdrant `book_vectors` collection
 - **Inputs**: CLI args: `--docs-dir`, `--chunk-size`, `--chunk-overlap`, `--collection-name`, `--batch-size`, `--qdrant-host`, `--qdrant-port`, `--cohere-model`
 - **Outputs**: Vector embeddings stored in Qdrant collection with metadata: `content`, `source_file`, `module`, `chapter`, `chunk_index`, `created_at`
 - **Side Effects**: Qdrant collection created/recreated via `recreate_collection`; ingestion log written to `ingestion.log`
@@ -88,10 +88,11 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 - **Vector search**: Qdrant query timeout configurable via `QUERY_TIMEOUT` env var (default 30s)
 - **LLM streaming**: Token-by-token SSE with configurable `max_tokens` (1000) and `temperature` (0.3)
 - **Retry logic**: Cohere embedding and Qdrant search both implement exponential backoff (2^n seconds, max 3 retries)
-- **Ingestion**: Performance tracking warns if estimated total exceeds 10 minutes
+- **Ingestion**: Performance tracking warns if estimated total exceeds 10 minutes; token-aware chunking via tiktoken `cl100k_base`
+- **Rate limiting**: `InMemoryRateLimiter` with sliding window (default 60 requests per 60s per IP) applied via middleware
 
 ### Security
-- **Input sanitization**: HTML escaping, regex-based XSS/SQLi/code-execution/ path-traversal blocking via `utils/validation.py`
+- **Input sanitization**: HTML escaping, regex-based XSS/SQLi/code-execution/path-traversal blocking via `utils/validation.py`
 - **Guardrail**: Pre-LLM off-topic detection via Judge agent (OpenRouter)
 - **ChatKit auth**: Stateless client secrets via `secrets.token_urlsafe(32)`
 - **CORS**: Configurable `ALLOWED_ORIGINS` env var; default allows localhost:3000 and Vercel production URL
@@ -102,11 +103,12 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 - **Guardrail fail-open**: If Judge agent throws an error, `tripwire_triggered=False` (query passes through)
 - **ChatKit error isolation**: `ErrorEvent` only yielded if no tokens were streamed yet (avoids corrupting partial responses)
 - **SQLite lazy init**: `_ensure_initialized()` called before every DB operation; tables auto-created on first use
+- **Ingestion retries**: `handle_api_call_with_retry()` with exponential backoff (1s, 2s, 4s) for Cohere/Qdrant API calls
 
 ### Scalability
 - **Stateless API**: All required user/context state passed via headers/body
 - **Async everything**: FastAPI async handlers, async Cohere v2, async Qdrant, aiosqlite
-- **Connection pool**: Not explicitly configured (Qdrant client handles internally)
+- **Embedding cache**: In-memory dict cache (`_embed_cache`) with 300s TTL for Cohere embeddings (process-local, lost on restart)
 
 ### Observability
 - **Structured logging**: `logging` module with `%(asctime)s - %(name)s - %(levelname)s - %(message)s` format
@@ -114,9 +116,9 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 - **Health endpoint**: `GET /health` returns status, version, timestamp
 
 ### Deployment
-- **Backend**: Docker container → Hugging Face Spaces (uvicorn on port 7860)
-- **Frontend**: Static site → Vercel (Docusaurus build output)
-- **CI/CD**: GitHub Actions workflow copies backend files to HF Space repo and pushes
+- **Backend**: Docker container -> Hugging Face Spaces (uvicorn on port 7860)
+- **Frontend**: Static site -> Vercel (Docusaurus build output)
+- **CI/CD**: GitHub Actions workflow runs backend tests (99) + ingestion tests (79), then deploys backend to HF Space
 - **Runtime**: Python 3.13 (alpine), uv package manager
 - **Environment**: All config via env vars; no secrets in code
 
@@ -146,92 +148,88 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      USER'S BROWSER                              │
-│  ┌─────────────────────────────┐  ┌──────────────────────────┐  │
-│  │    Docusaurus Textbook      │  │   ChatKit Widget          │  │
-│  │  (static MDX → HTML)        │  │  (React, floating)        │  │
-│  └──────────────┬──────────────┘  └──────────┬───────────────┘  │
-│                 │ selection                   │ ChatKit protocol │
-│                 ▼                             ▼                   │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              chatkit-fetch.ts (interceptor)              │    │
-│  │   injects X-User-ID + pageContext into ChatKit body     │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTP/SSE
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    VERCEL (CDN + proxy)                          │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │   Docusaurus dev proxy: /chatkit → backend:8000          │    │
-│  │   vercel.json rewrites in production                     │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              HUGGING FACE SPACES (Backend)                       │
-│                                                                  │
-│  ┌──────────────────────┐   ┌──────────────────────────────┐   │
-│  │    FastAPI (app.py)   │   │  ChatKitServer (bridge)      │   │
-│  │  ┌────────────────┐   │   │  ┌──────────┐ ┌──────────┐  │   │
-│  │  │ /health         │   │   │  │ respond()│→│stream_   │  │   │
-│  │  │ /chat (SSE)     │   │   │  │          │ │agent_    │  │   │
-│  │  │ /chatkit        │   │   │  └──────────┘ │response │  │   │
-│  │  │ /api/chatkit/*  │   │   │               └──────────┘  │   │
-│  │  └────────────────┘   │   └──────────────────────────────┘   │
-│  └──────────┬─────────────┘                                      │
-│             │                                                     │
-│    ┌────────┼────────────┬─────────────────────────┐              │
-│    ▼        ▼            ▼                         ▼              │
-│  ┌──────┐ ┌────────┐ ┌────────┐ ┌──────────────────┐             │
-│  │Agent │ │Config  │ │Retrieva│ │ SQLiteStore       │             │
-│  │.py   │ │.py     │ │l.py    │ │ (chatkit.db)      │             │
-│  └──┬───┘ └────────┘ └───┬────┘ └──────────────────┘             │
-│     │                     │                                       │
-│     ▼                     ▼                                       │
-│  ┌────────┐        ┌──────────┐                                   │
-│  │OpenRout│        │  Qdrant  │                                   │
-│  │er LLM  │        │ (Cloud)  │                                   │
-│  │(API v1)│        │          │                                   │
-│  └────────┘        └──────────┘                                   │
-│                           ▲                                        │
-│                           │ (embedding)                            │
-│                      ┌──────────┐                                  │
-│                      │  Cohere  │                                  │
-│                      │ (API v2) │                                  │
-│                      └──────────┘                                  │
-└────────────────────────────────────────────────────────────────────┘
+                         USER'S BROWSER
+  ┌─────────────────────────────────────────────┐
+  │  ┌──────────────────┐  ┌──────────────────┐ │
+  │  │   Docusaurus     │  │  ChatKit Widget  │ │
+  │  │   Textbook       │  │  (React, float)  │ │
+  │  └────────┬─────────┘  └────────┬─────────┘ │
+  │           │ selection            │ ChatKit   │
+  │           ▼                      ▼           │
+  │  ┌────────────────────────────────────────┐  │
+  │  │   chatkit-fetch.ts (interceptor)       │  │
+  │  │   injects X-User-ID + pageContext      │  │
+  │  └────────────────────────────────────────┘  │
+  └───────────────────────┬──────────────────────┘
+                          │ HTTP/SSE
+                          ▼
+  ┌─────────────────────────────────────────────┐
+  │   VERCEL (CDN) / Docusaurus dev proxy       │
+  │   Proxies /chatkit -> backend:8000          │
+  └───────────────────────┬──────────────────────┘
+                          │
+                          ▼
+  ┌─────────────────────────────────────────────┐
+  │         HUGGING FACE SPACES (Backend)        │
+  │                                              │
+  │  ┌──────────────┐  ┌──────────────────────┐ │
+  │  │  FastAPI      │  │  ChatKitServer       │ │
+  │  │  /health      │  │  respond() -> stream │ │
+  │  │  /chat (SSE)  │  │  agent_response()    │ │
+  │  │  /chatkit     │  └──────────────────────┘ │
+  │  │  /api/chatkit │                           │
+  │  └───────┬───────┘                           │
+  │          │                                    │
+  │    ┌─────┼──────────┬──────────────┐          │
+  │    ▼     ▼          ▼              ▼          │
+  │  ┌────┐ ┌────────┐ ┌──────────┐ ┌─────────┐ │
+  │  │Age │ │ Config │ │Retrieval │ │SQLite   │ │
+  │  │nt  │ │        │ │.py       │ │Store    │ │
+  │  │.py │ │.py     │ │(Cohere+  │ │(chatkit │ │
+  │  │    │ │        │ │ Qdrant)  │ │.db)     │ │
+  │  └─┬──┘ └────────┘ └────┬─────┘ └─────────┘ │
+  │    │                     │                    │
+  │    ▼                     ▼                    │
+  │  ┌──────────┐      ┌──────────┐              │
+  │  │OpenRouter│      │  Qdrant  │              │
+  │  │LLM API   │      │  (Cloud) │              │
+  │  └──────────┘      └──────────┘              │
+  │                          ▲                    │
+  │                     ┌──────────┐              │
+  │                     │  Cohere  │              │
+  │                     │ (API v2) │              │
+  │                     └──────────┘              │
+  └──────────────────────────────────────────────┘
 
 Data Flow (chat):
-  User → ChatKitWidget → chatkit-fetch.ts (inject pageContext)
-    → /chatkit (FastAPI) → CustomChatKitServer.respond()
-      → load thread history from SQLiteStore
-        → get_relevant_chunks(query + page title)
-          → Cohere embed → Qdrant search
-        → book_knowledge_agent (OpenRouter LLM + chunks as context)
-          → guardrail check (Judge agent)
-          → stream_agent_response (SSE to ChatKit)
-    → SQLiteStore.save_item (persist conversation)
+  User -> ChatKitWidget -> chatkit-fetch.ts (inject pageContext)
+    -> /chatkit (FastAPI) -> CustomChatKitServer.respond()
+      -> load thread history from SQLiteStore
+        -> get_relevant_chunks(query + page title)
+          -> Cohere embed -> Qdrant search
+        -> book_knowledge_agent (OpenRouter LLM + chunks as context)
+          -> guardrail check (Judge agent)
+          -> stream_agent_response (SSE to ChatKit)
+    -> SQLiteStore.save_item (persist conversation)
 
 Data Flow (ingestion):
-  MDX files → read_mdx_file() → convert_mdx_to_text()
-    → chunk_text(512, 50) → prepare_chunks_for_embedding()
-      → cohere.embed() → store_vectors_in_qdrant()
+  MDX files -> read_mdx_file() -> convert_mdx_to_text()
+    -> chunk_text (tiktoken, 512 tokens, 50 overlap)
+      -> prepare_chunks_for_embedding()
+        -> cohere.embed() -> batch store in Qdrant (100/batch)
+          -> verify_stored_vectors()
 ```
 
 ## Non-Goals & Out of Scope
 
 - **User authentication system**: ChatKit `X-User-ID` is a simple header-based identity. No OAuth, no SSO
 - **Multi-modal RAG**: Images in textbook are not embedded or retrieved; only text chunks
-- **Citation tracking**: `AgentResponse.citations` field is defined but never populated with meaningful data
-- **Load balancing / horizontal scaling**: SQLite is single-process; no connection pooling for Cohere/Qdrant
-- **Test coverage in CI**: `.github/workflows/deploy.yml` only deploys backend; no tests are executed
-- **Linter/formatter**: No ruff, black, eslint, or prettier configuration
-- **API documentation**: No auto-generated OpenAPI/Swagger documentation
-- **Monitoring / alerting**: No metrics collection (Prometheus), no tracing (OpenTelemetry)
-- **Rate limiting**: No request rate limiting or DDoS protection
+- **Citation tracking**: `AgentResponse.citations` field is defined but never populated with meaningful data (only `source_file` is provided)
+- **Load balancing / horizontal scaling**: SQLite is single-process; embedding cache is process-local; no distributed state
+- **Structured logging (JSON)**: Logging uses plain-text format, not structured JSON
+- **API documentation**: No auto-generated OpenAPI/Swagger documentation exposed
+- **Monitoring / alerting**: No metrics collection (Prometheus), no tracing (OpenTelemetry), no alerts
+- **Connection lifecycle management**: Cohere and Qdrant clients initialized at module level with no explicit close/shutdown in lifespan
 
 ## Known Gaps & Technical Debt
 
@@ -241,36 +239,40 @@ Data Flow (ingestion):
 - **Impact**: Anyone with repo access can use these keys; keys are not revocable if exposed
 - **Recommendation**: Revoke keys, `git filter-branch`/BFG to remove from history, add as GitHub secrets + HF Space secrets
 
-### Gap 2: Missing Backend Files in CI Deployment
-- **Issue**: `.github/workflows/deploy.yml` copies backend files to HF Space but omits `chatkit_server.py` and `store.py`
-- **Evidence**: `cp` commands in deploy.yml lines 32-40
-- **Impact**: Backend crashes on HF Spaces startup with `ModuleNotFoundError`
-- **Recommendation**: Add `cp my_project/backend/chatkit_server.py hf/` and `cp my_project/backend/store.py hf/`
+### Gap 2: No `.env.example` File
+- **Issue**: No example env file for new contributors
+- **Impact**: Difficult onboarding; contributors don't know which env vars are required or their formats
+- **Recommendation**: Create `.env.example` with documented placeholders for all env vars
 
-### Gap 3: Unused initialize_agent() Function
-- **Issue**: `agent.py:113-124` defines `initialize_agent()` but it's never called anywhere
-- **Impact**: Dead code; confusion for maintainers
+### Gap 3: Unused `initialize_agent()` Function
+- **Issue**: `agent.py:113-124` defines `initialize_agent()` but it is never called anywhere in the codebase
+- **Impact**: Dead code causing confusion for maintainers
 - **Recommendation**: Remove the function
 
-### Gap 4: Test Dependencies in Production
-- **Issue**: `pyproject.toml` lists `pytest` and `pytest-asyncio` in main `dependencies` rather than `[dependency-groups] dev`
-- **Impact**: Test frameworks ship to production, increasing image size and attack surface
-- **Recommendation**: Move to dev dependency group
+### Gap 4: Missing `__init__.py` in Backend Packages
+- **Issue**: `backend/models/` and `backend/utils/` directories lack `__init__.py` files
+- **Impact**: Works via implicit namespace packages in Python 3.13, but may break with some tooling and is non-standard
+- **Recommendation**: Add `__init__.py` to both directories
 
-### Gap 5: Deprecated uv Flag in Dockerfile
-- **Issue**: `Dockerfile` uses `--no-dev` which is deprecated in newer uv versions
-- **Impact**: Docker build may fail with newer uv
-- **Recommendation**: Replace with `--no-group dev`
+### Gap 5: ChatKit Session Management Lacks Auth
+- **Issue**: `/api/chatkit/session` creates client secrets via `secrets.token_urlsafe(32)` but these secrets are used only for the session lifetime; no actual authentication or token validation is enforced
+- **Impact**: Any user can create a session without authorization
+- **Recommendation**: Add optional rate limiting or user identity validation at session creation
 
-### Gap 6: Missing .env.example
-- **Issue**: No example env file for new contributors
-- **Impact**: Difficult onboarding; contributors don't know which env vars are required
-- **Recommendation**: Create `.env.example` with documented placeholders
+### Gap 6: Embedding Cache is Process-Local
+- **Issue**: `retrieval.py` has an in-memory dict cache (`_embed_cache`) with 300s TTL; cache is lost on server restart
+- **Impact**: First request after restart always incurs embedding latency; cache does not survive deployment
+- **Recommendation**: Add optional Redis-based cache for embedding results
 
-### Gap 7: No CI Test Execution
-- **Issue**: `deploy.yml` deploys without running any tests
-- **Impact**: Broken code can be deployed to production
-- **Recommendation**: Add `uv run pytest tests/` step before the deploy step
+### Gap 7: Chunking Overlap May Lose Context
+- **Issue**: Current chunk overlap is 50 characters/tokens; this may be insufficient for preserving context across chunks, especially for paragraphs referencing earlier content
+- **Impact**: Chunks split mid-paragraph may lose semantic continuity
+- **Recommendation**: Increase overlap to 100-150 tokens, or implement semantic chunking that respects paragraph/section boundaries
+
+### Gap 8: Guardrail Agent Runs on Every Query
+- **Issue**: The Judge agent makes an additional LLM call for every query, doubling API cost and latency
+- **Impact**: Every user query costs 2x (guardrail + main response) with ~2x latency
+- **Recommendation**: Consider keyword-based pre-filtering before the guardrail LLM call, or embedding-based classification
 
 ## Success Criteria
 
@@ -286,7 +288,8 @@ Data Flow (ingestion):
 ### Non-Functional Success
 - [ ] Frontend: `npm run typecheck` passes with 0 errors
 - [ ] Frontend: `npm run build` produces `build/` directory
-- [ ] Backend: `uv run pytest tests/ -v` — 15/15 tests pass
+- [ ] Backend: `uv run pytest tests/ -v` — 99/99 tests pass
+- [ ] Ingestion: `uv run pytest tests/ -v` — 79/79 tests pass
 - [ ] Backend: `uv sync --frozen --no-group dev` resolves without errors
 - [ ] Backend: Docker build succeeds with `docker build .`
 - [ ] Zero hardcoded secrets in source code
@@ -311,7 +314,7 @@ Data Flow (ingestion):
 
 ### Test 4: Ingestion Completeness
 **Given**: Ingestion script is run against `frontend/docs/`
-**When**: `python ingest_book.py --docs-dir=./my_project/frontend/docs`
+**When**: `uv run python ingest_book.py --docs-dir=./my_project/frontend/docs`
 **Then**: All 7 MDX files processed; Qdrant collection `book_vectors` has vectors for each chunk; `verify_stored_vectors()` returns True
 
 ### Test 5: ChatKit Thread Persistence
