@@ -81,6 +81,7 @@ jobs:
         cp my_project/backend/chatkit_server.py hf/
         cp -r my_project/backend/models hf/
         cp -r my_project/backend/utils hf/
+        cp -r my_project/backend/scripts hf/
 
         cd hf
         git add .

@@ -60,8 +60,8 @@ const ChatKitWidget: React.FC = () => {
         if (rect) {
           setSelection({
             text,
-            x: rect.left + window.scrollX,
-            y: rect.top + window.scrollY - 40,
+            x: rect.left,
+            y: rect.top - 40,
           });
         }
       } else {
@@ -77,9 +77,17 @@ const ChatKitWidget: React.FC = () => {
     if (!selection) return;
     
     setIsOpen(true);
-    setComposerValue({ text: `Tell me more about this: "${selection.text}"` });
+    try {
+      (setComposerValue as any)({ text: `Tell me more about this: "${selection.text}"` });
+    } catch (e) {
+      try {
+        (setComposerValue as any)({ value: `Tell me more about this: "${selection.text}"` });
+      } catch (e2) {
+        console.warn('ChatKit setComposerValue failed', e, e2);
+      }
+    }
     setSelection(null);
-  }, [selection, control, setComposerValue]);
+  }, [selection, setComposerValue]);
 
   return (
     <>

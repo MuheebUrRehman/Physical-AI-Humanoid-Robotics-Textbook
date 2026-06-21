@@ -17,6 +17,7 @@ class TestCLIParser:
         assert args.cohere_model == "embed-multilingual-v3.0"
         assert args.collection_name == "book_vectors"
         assert args.batch_size == 100
+        assert args.vector_size == 1024
 
 
 class TestValidateInputParameters:
@@ -31,7 +32,7 @@ class TestValidateInputParameters:
             collection_name = "book_vectors"
             batch_size = 100
 
-        assert validate_input_parameters(MockArgs()) is True
+        assert validate_input_parameters(MockArgs(), skip_dir_check=True) is True
 
     def test_invalid_chunk_size_negative(self):
         class MockArgs:
@@ -45,7 +46,7 @@ class TestValidateInputParameters:
             batch_size = 100
 
         with pytest.raises(ValueError):
-            validate_input_parameters(MockArgs())
+            validate_input_parameters(MockArgs(), skip_dir_check=True)
 
     def test_invalid_chunk_overlap_negative(self):
         class MockArgs:
@@ -59,7 +60,7 @@ class TestValidateInputParameters:
             batch_size = 100
 
         with pytest.raises(ValueError):
-            validate_input_parameters(MockArgs())
+            validate_input_parameters(MockArgs(), skip_dir_check=True)
 
     def test_chunk_overlap_ge_chunk_size(self):
         class MockArgs:
@@ -73,7 +74,7 @@ class TestValidateInputParameters:
             batch_size = 100
 
         with pytest.raises(ValueError, match="overlap must be less than chunk size"):
-            validate_input_parameters(MockArgs())
+            validate_input_parameters(MockArgs(), skip_dir_check=True)
 
     def test_invalid_port_too_high(self):
         class MockArgs:
@@ -87,7 +88,7 @@ class TestValidateInputParameters:
             batch_size = 100
 
         with pytest.raises(ValueError, match="1 and 65535"):
-            validate_input_parameters(MockArgs())
+            validate_input_parameters(MockArgs(), skip_dir_check=True)
 
     def test_invalid_collection_name_empty(self):
         class MockArgs:
@@ -101,4 +102,4 @@ class TestValidateInputParameters:
             batch_size = 100
 
         with pytest.raises(ValueError):
-            validate_input_parameters(MockArgs())
+            validate_input_parameters(MockArgs(), skip_dir_check=True)

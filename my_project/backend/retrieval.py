@@ -3,21 +3,31 @@ import logging
 import time
 from typing import List, Dict, Optional, Tuple
 
-import cohere
-from qdrant_client import AsyncQdrantClient
-
 from config import Config
 
 logger = logging.getLogger(__name__)
 
-co = cohere.AsyncClientV2(api_key=Config.COHERE_API_KEY)
+_cohere_client: object | None = None
+_qdrant_client: object | None = None
 
-qdrant_client = AsyncQdrantClient(
-    url=Config.QDRANT_HOST,
-    api_key=Config.QDRANT_API_KEY,
-    port=Config.QDRANT_PORT,
-    timeout=Config.QUERY_TIMEOUT
-)
+def _get_cohere_client():
+    global _cohere_client
+    if _cohere_client is None:
+        import cohere
+        _cohere_client = cohere.AsyncClientV2(api_key=Config.COHERE_API_KEY)
+    return _cohere_client
+
+def _get_qdrant_client():
+    global _qdrant_client
+    if _qdrant_client is None:
+        from qdrant_client import AsyncQdrantClient
+        _qdrant_client = AsyncQdrantClient(
+            url=Config.QDRANT_HOST,
+            api_key=Config.QDRANT_API_KEY,
+            port=Config.QDRANT_PORT,
+            timeout=Config.QUERY_TIMEOUT
+        )
+    return _qdrant_client
 
 # In-memory embedding cache: {query: (embedding, timestamp)}
 _embed_cache: Dict[str, Tuple[List[float], float]] = {}
@@ -38,6 +48,7 @@ async def embed_query(query: str, max_retries: int = 3) -> List[float]:
 
     for attempt in range(max_retries):
         try:
+            co = _get_cohere_client()
             response = await co.embed(
                 texts=[query],
                 model=Config.COHERE_MODEL,
@@ -72,7 +83,8 @@ async def get_relevant_chunks(query: str, max_retries: int = 3) -> List[Dict[str
                 continue
 
             start_time = time.time()
-            search_results = await qdrant_client.query_points(
+            qdrant = _get_qdrant_client()
+            search_results = await qdrant.query_points(
                 collection_name=Config.QDRANT_COLLECTION_NAME,
                 query=query_embedding,
                 limit=Config.TOP_K,

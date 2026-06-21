@@ -1,6 +1,8 @@
-import html
 import re
 from typing import Optional
+
+def _strip_control_chars(text: str) -> str:
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
 
 def validate_query(query: str) -> tuple[bool, Optional[str], str]:
     """
@@ -21,10 +23,7 @@ def validate_query(query: str) -> tuple[bool, Optional[str], str]:
     if len(query) > 2000:
         return False, "Query exceeds maximum length of 2000 characters", query
 
-    # Sanitize the query to prevent injection attacks
-    sanitized_query = html.escape(query)
-
-    # Check for potentially harmful patterns
+    # Check for potentially harmful patterns against original query
     harmful_patterns = [
         r'<script',  # Potential XSS
         r'javascript:',  # Potential XSS
@@ -50,6 +49,9 @@ def validate_query(query: str) -> tuple[bool, Optional[str], str]:
     for pattern in sql_patterns:
         if re.search(pattern, query, re.IGNORECASE):
             return False, "Query contains potentially harmful SQL content", query
+
+    # Sanitize: strip control characters that could interfere with LLM processing
+    sanitized_query = _strip_control_chars(query)
 
     return True, None, sanitized_query
 
@@ -112,36 +114,3 @@ def validate_session_id(session_id: Optional[str]) -> tuple[bool, Optional[str]]
         return False, "Session ID contains invalid characters that could be used for path traversal."
 
     return True, None
-
-
-def sanitize_input(text: str) -> str:
-    """
-    Sanitize input text to prevent injection attacks.
-
-    Args:
-        text: Input text to sanitize
-
-    Returns:
-        Sanitized text
-    """
-    if not text:
-        return text
-
-    # HTML escape to prevent XSS
-    sanitized = html.escape(text)
-
-    # Remove potentially dangerous characters/sequences
-    dangerous_sequences = [
-        '../',
-        '..\\',
-        'eval(',
-        'exec(',
-        '__import__',
-        'os.',
-        'subprocess.',
-    ]
-
-    for seq in dangerous_sequences:
-        sanitized = sanitized.replace(seq, '')
-
-    return sanitized

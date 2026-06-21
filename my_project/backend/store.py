@@ -105,25 +105,40 @@ class SQLiteStore(Store[Any]):
         context: Any,
     ) -> Page[ThreadItem]:
         await self._ensure_initialized()
+
+        ORDER_SQL = {"asc": "ASC", "desc": "DESC"}
+        sql_order = ORDER_SQL.get(order, "DESC")
+
+        comparator = "<" if order == "desc" else ">"
         async with aiosqlite.connect(self.db_path) as db:
-            sql_order = "DESC" if order == "desc" else "ASC"
-            query = "SELECT item_data FROM items WHERE thread_id = ?"
-            async with db.execute(f"{query} ORDER BY created_at {sql_order}", (thread_id,)) as cursor:
-                rows = await cursor.fetchall()
-                
-            items = [thread_item_adapter.validate_json(row[0]) for row in rows]
-            
-            # Memory-based pagination for simplicity and accuracy
-            start_idx = 0
             if after:
-                for idx, item in enumerate(items):
-                    if item.id == after:
-                        start_idx = idx + 1
-                        break
-            
-            page_data = items[start_idx:start_idx + limit]
-            has_more = len(items) > (start_idx + limit)
-            return Page(data=page_data, has_more=has_more)
+                cursor = await db.execute(
+                    f"SELECT created_at FROM items WHERE id = ?",
+                    (after,)
+                )
+                row = await cursor.fetchone()
+                if row:
+                    after_ts = row[0]
+                    items_cursor = await db.execute(
+                        f"SELECT item_data FROM items WHERE thread_id = ? AND created_at {comparator} ? ORDER BY created_at {sql_order} LIMIT ?",
+                        (thread_id, after_ts, limit)
+                    )
+                else:
+                    items_cursor = await db.execute(
+                        f"SELECT item_data FROM items WHERE thread_id = ? ORDER BY created_at {sql_order} LIMIT ?",
+                        (thread_id, limit)
+                    )
+            else:
+                items_cursor = await db.execute(
+                    f"SELECT item_data FROM items WHERE thread_id = ? ORDER BY created_at {sql_order} LIMIT ?",
+                    (thread_id, limit)
+                )
+
+            rows = await items_cursor.fetchall()
+            items = [thread_item_adapter.validate_json(row[0]) for row in rows]
+
+            has_more = len(items) >= limit
+            return Page(data=items, has_more=has_more)
 
     async def save_attachment(self, attachment: Attachment, context: Any) -> None:
         await self._ensure_initialized()
@@ -158,23 +173,40 @@ class SQLiteStore(Store[Any]):
         context: Any,
     ) -> Page[ThreadMetadata]:
         await self._ensure_initialized()
+
+        ORDER_SQL = {"asc": "ASC", "desc": "DESC"}
+        sql_order = ORDER_SQL.get(order, "DESC")
+
+        comparator = "<" if order == "desc" else ">"
         async with aiosqlite.connect(self.db_path) as db:
-            sql_order = "DESC" if order == "desc" else "ASC"
-            async with db.execute(f"SELECT metadata FROM threads ORDER BY created_at {sql_order}") as cursor:
-                rows = await cursor.fetchall()
-                
-            threads = [ThreadMetadata.model_validate_json(row[0]) for row in rows]
-            
-            start_idx = 0
             if after:
-                for idx, thread in enumerate(threads):
-                    if thread.id == after:
-                        start_idx = idx + 1
-                        break
-                        
-            page_data = threads[start_idx:start_idx + limit]
-            has_more = len(threads) > (start_idx + limit)
-            return Page(data=page_data, has_more=has_more)
+                cursor = await db.execute(
+                    "SELECT created_at FROM threads WHERE id = ?",
+                    (after,)
+                )
+                row = await cursor.fetchone()
+                if row:
+                    after_ts = row[0]
+                    threads_cursor = await db.execute(
+                        f"SELECT metadata FROM threads WHERE created_at {comparator} ? ORDER BY created_at {sql_order} LIMIT ?",
+                        (after_ts, limit)
+                    )
+                else:
+                    threads_cursor = await db.execute(
+                        f"SELECT metadata FROM threads ORDER BY created_at {sql_order} LIMIT ?",
+                        (limit,)
+                    )
+            else:
+                threads_cursor = await db.execute(
+                    f"SELECT metadata FROM threads ORDER BY created_at {sql_order} LIMIT ?",
+                    (limit,)
+                )
+
+            rows = await threads_cursor.fetchall()
+            threads = [ThreadMetadata.model_validate_json(row[0]) for row in rows]
+
+            has_more = len(threads) >= limit
+            return Page(data=threads, has_more=has_more)
 
     async def add_thread_item(
         self, thread_id: str, item: ThreadItem, context: Any

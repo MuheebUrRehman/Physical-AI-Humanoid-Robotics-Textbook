@@ -28,12 +28,16 @@ async def test_chat_endpoint_empty_query():
 async def test_chat_endpoint_valid_request_returns_stream():
     from app import app
 
+    async def _empty_stream_events():
+        if False:
+            yield
+
     with patch("app.get_relevant_chunks", new_callable=AsyncMock) as mock_retrieval, \
          patch("app.Runner.run_streamed") as mock_run:
 
         mock_retrieval.return_value = []
         mock_stream = MagicMock()
-        mock_stream.stream_events.return_value.__aiter__.return_value = []
+        mock_stream.stream_events = _empty_stream_events
         mock_run.return_value = mock_stream
 
         transport = ASGITransport(app=app)
@@ -71,17 +75,18 @@ async def test_chat_endpoint_streams_citations():
         {"text": "ROS 2 content.", "source": "module1/chapter1.mdx", "score": 0.95}
     ]
 
+    async def _mock_stream_events():
+        yield MagicMock(
+            type="run_item_stream_event",
+            result=MagicMock(final_output="ROS 2 is a framework."),
+        )
+
     with patch("app.get_relevant_chunks", new_callable=AsyncMock) as mock_retrieval, \
          patch("app.Runner.run_streamed") as mock_run:
 
         mock_retrieval.return_value = mock_chunks
         mock_stream = MagicMock()
-        mock_stream.stream_events.return_value.__aiter__.return_value = [
-            MagicMock(
-                type="run_item_stream_event",
-                result=MagicMock(final_output="ROS 2 is a framework."),
-            ),
-        ]
+        mock_stream.stream_events = _mock_stream_events
         mock_run.return_value = mock_stream
 
         transport = ASGITransport(app=app)

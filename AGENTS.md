@@ -1,95 +1,56 @@
 # AGENTS.md — Physical AI & Humanoid Robotics Textbook
 
-## Project anatomy
+## Repo layout
 
 ```
+AGENTS.md               ← this file
+opencode.md              ← OpenCode agent rules (SDD methodology)
 my_project/
-├── backend/          # FastAPI + OpenAI Agents SDK RAG chatbot (Python 3.13, uv)
-├── frontend/         # Docusaurus textbook site + ChatKit widget (React 19, npm)
-└── ingestion/        # MDX → Cohere embeddings → Qdrant (Python 3.13, uv)
+  backend/               ← FastAPI + OpenAI Agents SDK RAG chatbot (uv, Python 3.13+)
+  frontend/              ← Docusaurus 3.9 textbook site + ChatKit widget (npm, React 19)
+  ingestion/             ← MDX → Cohere embeddings → Qdrant pipeline (uv, Python 3.13+)
+  .env                   ← shared env (gitignored); template at .env.example
+.specify/                ← SDD templates & constitution (constitution.md is an unfilled template)
+.opencode/command/       ← sp.* custom commands (sp.phr, sp.adr, sp.plan, etc.)
+.agents/skills/          ← 5 installable agent skills (chatkit-integration, openai-agents-sdk, etc.)
+.github/workflows/       ← CI/CD deploys only backend to HF Spaces on main
+docs/reverse-engineered/ ← SDD artifacts from reverse-engineering phase
+history/prompts/         ← PHR records (auto-created per opencode.md)
 ```
 
-## Commands
+## Commands (run from each subdirectory, no root-level scripts)
 
-| Area | Command | Working dir |
-|---|---|---|
-| Install backend deps | `uv sync` | `my_project/backend` |
-| Run backend API | `uv run uvicorn app:app --reload --port 8000` | `my_project/backend` |
-| Install ingestion deps | `uv sync` | `my_project/ingestion` |
-| Run ingestion | `uv run python ingest_book.py --docs-dir=../frontend/docs` | `my_project/ingestion` |
-| Install frontend deps | `npm install` | `my_project/frontend` |
-| Run frontend dev | `npm run start` | `my_project/frontend` |
-| Frontend typecheck | `npm run typecheck` (runs `tsc`) | `my_project/frontend` |
-| Frontend build | `npm run build` | `my_project/frontend` |
-| Backend tests | `uv run pytest tests/` | `my_project/backend` |
-| Ingestion tests | `uv run pytest tests/` | `my_project/ingestion` |
-
-## Entry points and wiring
-
-- **Backend app**: `my_project/backend/app.py:app` — FastAPI instance. Config validation runs at **module import time** (before lifespan).
-- **Agent**: `my_project/backend/agent.py` — OpenAI Agents SDK agent. Uses OpenRouter as LLM provider (not direct OpenAI). Requires `HTTP-Referer` + `X-Title` headers in client config.
-- **LLM provider fallback** (in `config.py`): `LLM_API_KEY` → `OPENROUTER_API_KEY` → `GEMINI_API_KEY`. Change model via `LLM_MODEL` env var only.
-- **ChatKit bridge**: `my_project/backend/chatkit_server.py` — `CustomChatKitServer` extends `ChatKitServer[RequestContext]`. Overrides `respond()`. ChatKit SDK handles thread management; SQLite store persists conversations.
-- **Frontend Chat widget**: `my_project/frontend/src/theme/Root.tsx` globally includes `ChatKitWidget`. Uses `@openai/chatkit-react`. Custom fetch interceptor (`chatkit-fetch.ts`) injects page context (`url`, `title`, `headings`) into ChatKit protocol metadata.
-- **Ingestion default path gotcha**: `ingest_book.py` defaults to `./my_project/frontend/docs` (auto-detected from script location). The old default was `./my-website/docs` — if running from a non-standard CWD, pass `--docs-dir` explicitly.
-
-## Framework/toolchain quirks
-
-- **uv + FastAPI**: Use `uv run uvicorn ...` not raw `uvicorn`. The `uv` venv is managed automatically.
-- **ChatKit dev proxy**: `docusaurus.config.ts` has a custom plugin that proxies `/chatkit` and `/api/chatkit` to the backend. No CORS issues in dev.
-- **raw-loader plugin**: `.py`, `.cs`, `.world` files are loaded as raw strings for code examples. Don't remove.
-- **Agents SDK version**: Uses `openai-agents>=0.17.5`. Guardrails via `@input_guardrail` decorator, not the old `input_guardrail()` function.
-- **ChatKit SDK**: `@openai/chatkit-react` is the React wrapper. The `chatkit.js` script tag is loaded from CDN in `docusaurus.config.ts` for the ChatKit React import.
-- **No linter/formatter config**: No `ruff`, `black`, `eslint`, or `prettier` config found. Assume none unless added.
-
-## Spec-Driven Development (SDD) workflow
-
-This repo runs on SDD. Every feature goes through: `/sp.specify` → `/sp.plan` → `/sp.tasks` → `/sp.implement`.
-
-Command files at `.opencode/command/sp.*.md` define the full workflow:
-- `/sp.specify` — Write feature spec (user stories, acceptance criteria)
-- `/sp.plan` — Architecture plan, data model, contracts
-- `/sp.tasks` — Task breakdown by user story priority (P1, P2, P3)
-- `/sp.implement` — Implement from spec/plan/tasks
-- `/sp.adr` — Create Architecture Decision Record
-- `/sp.constitution` — Create/edit project constitution
-- `/sp.phr` — Create Prompt History Record (also auto-created after every prompt)
-- `/sp.reverse-engineer` — Extract spec/plan/tasks from existing code
-- `/sp.clarify` — Clarify ambiguous requirements
-- `/sp.checklist` — Review against quality checklist
-- `/sp.analyze` — Analyze codebase or feature design
-- `/sp.git.commit_pr` — Commit + PR creation workflow
-- `/sp.taskstoissues` — Convert tasks to GitHub issues
-
-## PHR requirement
-
-After **every user prompt**, create a PHR (Prompt History Record) under `history/prompts/`. Routing:
-- `constitution` stage → `history/prompts/constitution/`
-- Feature stages (spec/plan/tasks/red/green/refactor/explainer/misc) → `history/prompts/<feature-name>/`
-- `general` → `history/prompts/general/`
-
-Template at `.specify/templates/phr-template.prompt.md`. Must fill all YAML placeholders and embed full PROMPT_TEXT verbatim.
+| Package | Install | Dev server | Test | Typecheck | Build |
+|---|---|---|---|---|---|
+| `my_project/backend` | `uv sync` | `uv run uvicorn app:app --reload --port 8000` | `uv run pytest tests/ -v` | — | Docker: `uv sync --frozen --no-group dev` |
+| `my_project/frontend` | `npm install` | `npm run start` (port 3000) | `npm test` (vitest); `npm run test:watch` | `npm run typecheck` (tsc) | `npm run build` |
+| `my_project/ingestion` | `uv sync` | `uv run python ingest_book.py --docs-dir=../frontend/docs` | `uv run pytest tests/ -v` | — | — |
 
 ## Testing quirks
 
-- **Backend tests** use pytest with FastAPI TestClient and extensive mocking. No real API keys required. **99 tests**.
-- **Ingestion tests** use pytest (in `my_project/ingestion/tests/`). Run with `uv run pytest tests/`. **79 tests**.
-- **No CI test execution**: `.github/workflows/deploy.yml` only deploys backend; does not run tests.
+- **Backend** (94 tests): conftest.py sets dummy env var defaults so tests pass without `.env`.
+- **Ingestion** (79 tests): same pattern — conftest.py sets dummy COHERE/QDRANT vars.
+- **Frontend** (31 tests): vitest with jsdom; mocks Docusaurus modules in `src/__mocks__/docusaurus/`; vitest.config.ts has custom resolve aliases for those mocks.
 
-## Deployment
+## Env & config
 
-- **Backend**: GitHub Actions → Hugging Face Spaces. Pushes `my_project/backend/` files (app.py, agent.py, config.py, retrieval.py, models/, utils/, pyproject.toml, uv.lock, Dockerfile) to HF Space repo.
-- **Frontend**: Deployed to Vercel (URL in docusaurus config: `physical-ai-humanoid-robotics-textb-three-alpha.vercel.app`). Not automated in this repo's CI.
-- **CORS**: Configured via `ALLOWED_ORIGINS` env var. No trailing slashes allowed.
+- `.env` lives at `my_project/.env` — both backend and ingestion read it (config.py calls `load_dotenv()`).
+- Required: `COHERE_API_KEY`, `QDRANT_API_KEY`, `QDRANT_HOST`, `LLM_API_KEY`.
+- `LLM_API_KEY` defaults to `GEMINI_API_KEY` as fallback in config.py.
+- Backend port: 8000 (dev) / 7860 (Docker/Spaces).
+- Docker: `python:3.13-alpine`, excludes dev deps (`--no-group dev`).
 
-## Known constraints
+## CI/CD
 
-- `.env` file at `my_project/.env` contains **live API keys** committed to the repo. Do not push; do not use in examples.
-- `AgentResponse.citations` field is defined but **never populated** — chunks lack citation tracking.
-- `config.py:load_dotenv()` loads `my_project/backend/.env` or `my_project/.env` — not root `.env`.
-- ChatKit SQLite DB (`chatkit.db`) is gitignored and auto-created at runtime.
-- The constitution at `.specify/memory/constitution.md` is an **unfilled template** — all sections are placeholders.
-- **Embedding cache**: `retrieval.py` has an in-memory dict cache (`_embed_cache`) with 300s TTL. Cache is process-local and lost on restart.
-- **Chunking**: `ingest_book.py` uses `tiktoken`-aware paragraph/sentence-boundary chunking, not character-based splitting.
-- **Guardrails in ChatKit**: `chatkit_server.py` catches `InputGuardrailTripwireTriggered` and returns a friendly message (code `"custom"`, `allow_retry=False`).
-- **Input validation**: `/chat` endpoint validates `user_id` and `session_id` in addition to `query`.
+- `.github/workflows/deploy.yml`: runs backend + ingestion tests, then copies `my_project/backend/` files to Hugging Face Spaces. Triggered on push to `main` changing `my_project/backend/**`.
+- Frontend is deployed **separately** to Vercel (not in this repo's CI).
+
+## SDD workflow (opencode.md)
+
+- After every task, create a PHR in `history/prompts/<category>/` using `.specify/templates/phr-template.prompt.md`.
+- Custom commands: `sp.phr`, `sp.adr`, `sp.plan`, `sp.tasks`, `sp.implement`, etc. (defined in `.opencode/command/`).
+- Constitution at `.specify/memory/constitution.md` is an **unfilled template** — populate it before relying on SDD governance rules.
+
+## Agent skills
+
+Five skills in `.agents/skills/` can be loaded: `chatkit-integration`, `frontend-design`, `openai-agents-sdk`, `ui-ux-futuristic-designer`, `ui-ux-pro-max`. Load via the skill tool when the task matches.

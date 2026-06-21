@@ -24,5 +24,4 @@ def test_config_cohere_model_in_env():
 def test_config_validation_errors():
     from config import Config
 
-    msg = Config.validate()
-    assert msg is None
+    Config.validate()  # raises if validation fails

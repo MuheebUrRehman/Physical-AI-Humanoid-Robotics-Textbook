@@ -44,8 +44,8 @@ class TestValidateFilePath:
     def test_path_outside_base(self):
         assert validate_file_path("/tmp/secret.txt", "my-website/docs") is False
 
-    def test_url_encoded_traversal_not_decoded(self):
-        assert validate_file_path("my-website/docs/%2e%2e%2fsecret.txt", "my-website/docs") is True
+    def test_url_encoded_traversal_decoded_and_blocked(self):
+        assert validate_file_path("my-website/docs/%2e%2e%2fsecret.txt", "my-website/docs") is False
 
     def test_identical_path(self):
         assert validate_file_path("my-website/docs", "my-website/docs") is True

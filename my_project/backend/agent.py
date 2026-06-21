@@ -23,6 +23,9 @@ def _build_openai_client() -> AsyncOpenAI:
     )
 
 
+# Judge agent shares the same OpenRouter client as the main agent.
+# Both use the same LLM provider (OpenRouter via LLM_BASE_URL).
+# If the judge needs a different provider, override LLM_MODEL via env var.
 judge_agent = Agent(
     name="Judge",
     instructions="Determine if the input is related to physical AI, robotics, or technical topics. Respond with 'yes' or 'no'.",

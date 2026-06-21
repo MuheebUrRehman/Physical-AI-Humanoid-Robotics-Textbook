@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import time
 import json
 import asyncio
@@ -15,8 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from config import Config
-from models.chat import ChatRequest, ErrorResponse, HealthCheckResponse, SSEMessage, AgentResponse
-from pydantic import BaseModel
 import secrets
 from retrieval import get_relevant_chunks
 from agent import book_knowledge_agent, Runner, InputGuardrailTripwireTriggered
@@ -26,6 +23,7 @@ from models.chat import (
     SSEMessage, AgentResponse, ChatKitSessionRequest, ChatKitSessionResponse,
     RequestContext, PageContext
 )
+from utils.validation import validate_query, validate_user_id, validate_session_id
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,20 +31,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-allowed_origins_env = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:3000,https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app",
-)
 allowed_origins = [
     origin.strip().rstrip("/")
-    for origin in allowed_origins_env.split(",")
+    for origin in Config.ALLOWED_ORIGINS.split(",")
     if origin.strip()
 ]
-
-RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
-RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
-
-chatkit_server = None
 
 
 class InMemoryRateLimiter:
@@ -66,21 +55,15 @@ class InMemoryRateLimiter:
         return False
 
 
-rate_limiter = InMemoryRateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW)
+rate_limiter = InMemoryRateLimiter(Config.RATE_LIMIT_REQUESTS, Config.RATE_LIMIT_WINDOW_SECONDS)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global chatkit_server
+    Config.validate()
+    logger.info("Configuration validated successfully")
 
-    try:
-        Config.validate()
-        logger.info("Configuration validated successfully")
-    except ValueError as e:
-        logger.error(f"Configuration validation failed: {e}")
-        sys.exit(1)
-
-    chatkit_server = await initialize_chatkit_server()
+    app.state.chatkit_server = await initialize_chatkit_server()
     logger.info("ChatKitServer initialized successfully")
     yield
 
@@ -207,8 +190,6 @@ async def chat_stream_generator(request: ChatRequest) -> AsyncGenerator[str, Non
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
-        from utils.validation import validate_query, validate_user_id, validate_session_id
-
         is_valid, error_msg, sanitized_query = validate_query(request.query)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_msg)
@@ -239,10 +220,11 @@ async def chat_endpoint(request: ChatRequest):
 
 
 @app.post("/api/chatkit/session", response_model=ChatKitSessionResponse)
-async def chatkit_session(request: ChatKitSessionRequest):
+async def chatkit_session(session_req: ChatKitSessionRequest, request: Request):
     try:
-        thread = await chatkit_server.store.create_thread(
-            user_id=request.user_id,
+        cs = request.app.state.chatkit_server
+        thread = await cs.store.create_thread(
+            user_id=session_req.user_id,
             metadata={"source": "textbook_web"}
         )
 
@@ -251,7 +233,7 @@ async def chatkit_session(request: ChatKitSessionRequest):
         return ChatKitSessionResponse(
             client_secret=client_secret,
             thread_id=thread.id,
-            user_id=request.user_id
+            user_id=session_req.user_id
         )
     except Exception as e:
         logger.error(f"Error creating ChatKit session: {e}")
@@ -305,7 +287,8 @@ async def chatkit_protocol(request: Request):
 
     try:
         from chatkit.server import StreamingResult, NonStreamingResult
-        result = await chatkit_server.process(raw_body, context=ctx)
+        cs = request.app.state.chatkit_server
+        result = await cs.process(raw_body, context=ctx)
 
         if isinstance(result, StreamingResult):
             return StreamingResponse(result, media_type="text/event-stream")

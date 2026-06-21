@@ -1,7 +1,7 @@
 # Physical AI & Humanoid Robotics Textbook — Implementation Tasks
 
-**Version**: 3.0 (Reverse Engineered)
-**Date**: 2026-06-19
+**Version**: 3.1 (Reverse Engineered)
+**Date**: 2026-06-21
 
 ## Overview
 
@@ -34,7 +34,7 @@ This task breakdown represents how to rebuild the system from scratch using the 
 ### Task 1.2: Backend Configuration System
 - [ ] Implement `config.py` with `load_dotenv()` at module level, trying both `my_project/backend/.env` and `my_project/.env`
 - [ ] `Config` class with class-level fields for: `COHERE_API_KEY`, `QDRANT_API_KEY`, `QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_COLLECTION_NAME`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_SITE_URL`, `LLM_APP_NAME`, `TOP_K`, `RELEVANCE_THRESHOLD`, `QUERY_TIMEOUT`, `ALLOWED_ORIGINS`
-- [ ] LLM key fallback chain: `LLM_API_KEY` -> `OPENROUTER_API_KEY` -> `GEMINI_API_KEY`
+- [ ] LLM key fallback chain: `LLM_API_KEY` (OpenRouter) -> `GEMINI_API_KEY`
 - [ ] Defaults: `QDRANT_HOST=localhost`, `QDRANT_PORT=6333`, `QDRANT_COLLECTION_NAME=book_vectors`, `LLM_BASE_URL=https://openrouter.ai/api/v1`, `LLM_MODEL=qwen/qwen3-coder`, `TOP_K=3`, `RELEVANCE_THRESHOLD=0.0`, `QUERY_TIMEOUT=30`
 - [ ] `Config.validate()` classmethod that raises `ValueError` on missing required keys: `COHERE_API_KEY`, `QDRANT_API_KEY`, `LLM_API_KEY`, `QDRANT_HOST`
 - [ ] **Verify**: `Config.validate()` raises when keys missing; passes when present
@@ -479,7 +479,7 @@ This task breakdown represents how to rebuild the system from scratch using the 
 ### Task 7.4: Technical Debt Reduction
 - [ ] Move test dependencies to `[dependency-groups] dev` in both pyproject.toml files
 - [ ] Add `__init__.py` to `models/` and `utils/` directories
-- [ ] Remove dead code (`initialize_agent` function)
+- [x] Remove dead code (`initialize_agent` function) — resolved
 - [ ] Extract shared RAG orchestration service (duplicated between app.py and chatkit_server.py)
 - [ ] Add Redis-based embedding cache as alternative to in-memory dict
 - [ ] Implement semantic chunking that respects paragraph/section boundaries

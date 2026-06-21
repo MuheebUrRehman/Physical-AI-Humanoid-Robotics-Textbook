@@ -1,7 +1,7 @@
 # Physical AI & Humanoid Robotics Textbook — Specification
 
-**Version**: 3.0 (Reverse Engineered)
-**Date**: 2026-06-19
+**Version**: 3.1 (Reverse Engineered)
+**Date**: 2026-06-21
 **Source**: `D:\GIAIC\Q4\Hackathons\Physical-AI-Humanoid-Robotics-Textbook`
 
 ## Problem Statement
@@ -127,7 +127,7 @@ Students and professionals learning Physical AI and Humanoid Robotics lack an in
 ### External Dependencies
 - **Qdrant**: Vector database (cloud instance at `QDRANT_HOST`). Requires `QDRANT_API_KEY`
 - **Cohere**: Embedding API v2. Requires `COHERE_API_KEY`. Model: `embed-multilingual-v3.0`
-- **OpenRouter**: LLM provider (primary). Falls back to OpenAI/Gemini compatible endpoints. Requires `LLM_API_KEY` (or `OPENROUTER_API_KEY` / `GEMINI_API_KEY`)
+- **OpenRouter**: LLM provider (primary via `LLM_API_KEY`). Falls back to Gemini (`GEMINI_API_KEY`)
 - **ChatKit CDN**: `chatkit.js` loaded from `cdn.platform.openai.com` for the React component
 - **SQLite**: Local file database via `aiosqlite` for conversation persistence
 
@@ -239,15 +239,15 @@ Data Flow (ingestion):
 - **Impact**: Anyone with repo access can use these keys; keys are not revocable if exposed
 - **Recommendation**: Revoke keys, `git filter-branch`/BFG to remove from history, add as GitHub secrets + HF Space secrets
 
-### Gap 2: No `.env.example` File
+### Gap 2: No `.env.example` File — RESOLVED v3.1
 - **Issue**: No example env file for new contributors
-- **Impact**: Difficult onboarding; contributors don't know which env vars are required or their formats
-- **Recommendation**: Create `.env.example` with documented placeholders for all env vars
+- **Status**: Resolved — `my_project/.env.example` now exists with documented placeholders for COHERE_API_KEY, QDRANT_API_KEY, QDRANT_HOST, LLM_API_KEY, GEMINI_API_KEY, CHATKIT_DOMAIN_KEY
+- **Recommendation**: Keep `.env.example` in sync as new env vars are added
 
-### Gap 3: Unused `initialize_agent()` Function
-- **Issue**: `agent.py:113-124` defines `initialize_agent()` but it is never called anywhere in the codebase
-- **Impact**: Dead code causing confusion for maintainers
-- **Recommendation**: Remove the function
+### Gap 3: Unused `initialize_agent()` Function — RESOLVED v3.1
+- **Issue**: `agent.py` defined `initialize_agent()` but it was never called anywhere in the codebase
+- **Status**: Resolved — function has been removed from `agent.py`
+- **Recommendation**: Ensure no dead code is introduced in future changes
 
 ### Gap 4: Missing `__init__.py` in Backend Packages
 - **Issue**: `backend/models/` and `backend/utils/` directories lack `__init__.py` files

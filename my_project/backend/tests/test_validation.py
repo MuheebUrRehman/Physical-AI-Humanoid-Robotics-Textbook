@@ -1,5 +1,5 @@
 import pytest
-from utils.validation import validate_query, validate_user_id, validate_session_id, sanitize_input
+from utils.validation import validate_query, validate_user_id, validate_session_id
 
 
 class TestValidateQuery:
@@ -58,10 +58,12 @@ class TestValidateQuery:
         is_valid, error, _ = validate_query("'; DROP TABLE users; --")
         assert is_valid is False
 
-    def test_html_escaping(self):
-        _, _, sanitized = validate_query("<b>hello</b>")
-        assert "&lt;" in sanitized
-        assert "<b>" not in sanitized
+    def test_control_chars_stripped(self):
+        _, _, sanitized = validate_query("hello\x00world\x1f")
+        assert "hello" in sanitized
+        assert "world" in sanitized
+        assert "\x00" not in sanitized
+        assert "\x1f" not in sanitized
 
 
 class TestValidateUserId:
@@ -108,22 +110,3 @@ class TestValidateSessionId:
         assert is_valid is False
 
 
-class TestSanitizeInput:
-    def test_empty_string(self):
-        assert sanitize_input("") == ""
-
-    def test_removes_dangerous_sequences(self):
-        result = sanitize_input("eval(something)")
-        assert "eval(" not in result
-
-    def test_removes_os_call(self):
-        result = sanitize_input("os.system('rm')")
-        assert "os." not in result
-
-    def test_removes_subprocess(self):
-        result = sanitize_input("subprocess.call('ls')")
-        assert "subprocess." not in result
-
-    def test_escapes_html(self):
-        result = sanitize_input("<script>")
-        assert "&lt;" in result

@@ -19,9 +19,13 @@ export const getPageContext = (): PageContext => {
     .filter(Boolean)
     .slice(0, 5); // Limit to top 5 headings for context efficiency
 
+  const siteSeparator = ' | ';
+  const titleParts = document.title.split(siteSeparator);
+  const pageTitle = titleParts.length > 1 ? titleParts.slice(0, -1).join(siteSeparator).trim() : document.title;
+
   return {
     url: window.location.href,
-    title: document.title.replace(' | Physical AI & Humanoid Robotics', ''),
+    title: pageTitle,
     headings,
   };
 };

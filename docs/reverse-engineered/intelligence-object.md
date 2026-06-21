@@ -1,7 +1,7 @@
 # Physical AI & Humanoid Robotics Textbook — Reusable Intelligence
 
-**Version**: 3.0 (Extracted from Codebase)
-**Date**: 2026-06-19
+**Version**: 3.1 (Extracted from Codebase)
+**Date**: 2026-06-21
 
 ## Overview
 
@@ -446,7 +446,7 @@ class InMemoryRateLimiter:
 **Rationale** (inferred from code):
 1. `_build_openai_client()` in `agent.py` sets `base_url=Config.LLM_BASE_URL` which defaults to `https://openrouter.ai/api/v1`
 2. `default_headers` includes `HTTP-Referer` and `X-Title`, which are OpenRouter-specific identity headers
-3. `Config.LLM_API_KEY` has a fallback chain: `LLM_API_KEY` -> `OPENROUTER_API_KEY` -> `GEMINI_API_KEY`, suggesting OpenRouter is primary with Gemini as fallback
+3. `Config.LLM_API_KEY` has a fallback chain: `LLM_API_KEY` (OpenRouter) -> `GEMINI_API_KEY`, with OpenRouter as primary and Gemini as fallback
 4. Default model `qwen/qwen3-coder` is available through OpenRouter, not directly from OpenAI
 
 **Consequences**:
@@ -717,9 +717,7 @@ except Exception as e:
 ### What to Avoid in Future Projects
 
 1. **Committing API keys**: The `.env` file was committed before being gitignored. Always add sensitive files to `.gitignore` before the first commit
-2. **Dead code**: The `initialize_agent()` function in `agent.py` is defined but never called. Remove unused code during development, not after
-3. **Missing package `__init__.py`**: Works via implicit namespace packages in Python 3.13 but is non-standard and may break with some tooling
-4. **No `.env.example`**: New contributors have no template for required environment variables, slowing onboarding
+2. **Missing package `__init__.py`**: Works via implicit namespace packages in Python 3.13 but is non-standard and may break with some tooling
 
 ---
 

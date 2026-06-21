@@ -17,7 +17,6 @@ class Config:
 
     LLM_API_KEY: str = (
         os.getenv("LLM_API_KEY")
-        or os.getenv("OPENROUTER_API_KEY")
         or os.getenv("GEMINI_API_KEY", "")
     )
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
@@ -33,10 +32,17 @@ class Config:
     QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", 6333))
     QDRANT_COLLECTION_NAME: str = os.getenv("QDRANT_COLLECTION_NAME", "book_vectors")
 
-    TOP_K: int = int(os.getenv("TOP_K", 3))
-    QUERY_TIMEOUT: int = int(os.getenv("QUERY_TIMEOUT", 30))
+    TOP_K: int = max(1, int(os.getenv("TOP_K", 3)))
+    QUERY_TIMEOUT: int = max(1, int(os.getenv("QUERY_TIMEOUT", 30)))
     STREAMING_ENABLED: bool = os.getenv("STREAMING_ENABLED", "true").lower() == "true"
-    RELEVANCE_THRESHOLD: float = float(os.getenv("RELEVANCE_THRESHOLD", "0.0"))
+    RELEVANCE_THRESHOLD: float = max(0.0, float(os.getenv("RELEVANCE_THRESHOLD", "0.0")))
+
+    ALLOWED_ORIGINS: str = os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:3000,https://physical-ai-humanoid-robotics-textb-three-alpha.vercel.app",
+    )
+    RATE_LIMIT_REQUESTS: int = max(1, int(os.getenv("RATE_LIMIT_REQUESTS", "60")))
+    RATE_LIMIT_WINDOW_SECONDS: int = max(1, int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")))
 
     @classmethod
     def validate(cls) -> None:
@@ -46,7 +52,7 @@ class Config:
             raise ValueError("QDRANT_API_KEY environment variable is required")
         if not cls.LLM_API_KEY:
             raise ValueError(
-                "LLM_API_KEY (or OPENROUTER_API_KEY / GEMINI_API_KEY) "
+                "LLM_API_KEY (or GEMINI_API_KEY) "
                 "environment variable is required"
             )
         if not cls.QDRANT_HOST:

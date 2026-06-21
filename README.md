@@ -42,7 +42,7 @@ A comprehensive textbook on Physical AI and Humanoid Robotics with an integrated
 │   │   │   └── validation.py        # Input sanitization
 │   │   ├── scripts/
 │   │   │   └── read_db.py           # Debug utility
-│   │   └── tests/                    # pytest test suite (99 tests)
+│   │   └── tests/                    # pytest test suite (94 tests)
 │   │       ├── conftest.py           # Fixtures + dummy env vars
 │   │       ├── test_validation.py    # Input validation (17 tests)
 │   │       ├── test_models.py        # Pydantic model tests (16 tests)
@@ -56,16 +56,24 @@ A comprehensive textbook on Physical AI and Humanoid Robotics with an integrated
 │   │       ├── test_middleware.py    # CORS, rate limit, health (7 tests)
 │   │       └── test_store.py         # SQLiteStore CRUD (9 tests)
 │   ├── frontend/                     # Docusaurus textbook site + ChatKit widget
-│   │   ├── package.json             # npm dependencies (React 19, Docusaurus 3.9)
+│   │   ├── package.json             # npm dependencies (React 19, Docusaurus 3.10)
 │   │   ├── docusaurus.config.ts     # Site config, navbar, footer, plugins
 │   │   ├── sidebars.ts              # Documentation sidebar structure
+│   │   ├── vitest.config.ts         # Frontend test runner (vitest)
 │   │   ├── docs/                    # Textbook content (MDX), 6 chapters + glossary
 │   │   ├── src/                     # React source code
 │   │   │   ├── css/                 # Global styles (futuristic dark theme)
 │   │   │   ├── pages/               # Homepage with hero + module cards
 │   │   │   ├── components/          # ChatKitWidget, HomepageFeatures
 │   │   │   ├── theme/               # Root.tsx global wrapper
-│   │   │   └── utils/               # chatkit-fetch, context-extractor
+│   │   │   ├── utils/               # chatkit-fetch, context-extractor
+│   │   │   ├── __tests__/           # vitest test suite (31 tests)
+│   │   │   │   ├── utils/           # Utility function tests
+│   │   │   │   ├── components/      # Component smoke tests
+│   │   │   │   ├── pages/           # Page render tests
+│   │   │   │   └── theme/           # Root wrapper test
+│   │   │   ├── __mocks__/docusaurus/ # Docusaurus module stubs
+│   │   │   └── test-setup.ts        # Jest DOM matchers, localStorage polyfill
 │   │   ├── static/                  # Static assets (logo, favicon)
 │   │   └── code/                    # Code examples (ROS2, Unity, Gazebo, Isaac Sim)
 │   └── ingestion/                   # MDX → Cohere embeddings → Qdrant (uv project)
@@ -103,20 +111,16 @@ cd my_project/backend
 uv sync
 ```
 
-Configure environment variables in `.env` file (see `.env.example`):
+Configure environment variables in `.env` file (see `.env.example`). Only API keys are required —
+all other settings have defaults in `my_project/backend/config.py`:
 
 ```env
 COHERE_API_KEY=your_cohere_api_key_here
-COHERE_MODEL=embed-multilingual-v3.0
 QDRANT_API_KEY=your_qdrant_api_key_here
 QDRANT_HOST=your_qdrant_host_here
-QDRANT_PORT=6333
-QDRANT_COLLECTION_NAME=book_vectors
 LLM_API_KEY=sk-or-v1-your_openrouter_key_here
-LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_MODEL=qwen/qwen3-coder
-TOP_K=3
-RELEVANCE_THRESHOLD=0.0
+GEMINI_API_KEY=your_gemini_key_here
+CHATKIT_DOMAIN_KEY=your_chatkit_domain_key_here
 ```
 
 Start the backend:
@@ -142,20 +146,31 @@ uv sync
 uv run python ingest_book.py --docs-dir=../frontend/docs
 ```
 
+Additional options: `--chunk-size`, `--chunk-overlap`, `--vector-size`, `--collection-name`, `--batch-size`, `--cohere-model`, `--verbose`.
+
 ## Running Tests
 
-All test suites use **pytest** for consistency.
-
-### Backend tests (one command)
+### Backend tests (pytest, 94 tests)
 ```bash
 cd my_project/backend
 uv run pytest tests/ -v
 ```
 
-### Ingestion tests (one command)
+### Ingestion tests (pytest, 79 tests)
 ```bash
 cd my_project/ingestion
 uv run pytest tests/ -v
+```
+
+### Frontend tests (vitest, 31 tests)
+```bash
+cd my_project/frontend
+npm test
+```
+
+Watch mode:
+```bash
+npm run test:watch
 ```
 
 ### Frontend typecheck
@@ -166,5 +181,14 @@ npm run typecheck
 
 ## Deployment Environment Variables
 
-- Frontend: `API_BASE_URL=https://<your-hf-space-domain>`
-- Backend: `ALLOWED_ORIGINS=https://<your-vercel-domain>,http://localhost:3000`
+These must be set as secrets on the deployment platform (Hugging Face Spaces for backend):
+
+| Variable | Description |
+|---|---|
+| `COHERE_API_KEY` | Cohere embedding API key |
+| `QDRANT_API_KEY` | Qdrant vector database API key |
+| `QDRANT_HOST` | Qdrant cloud instance URL |
+| `LLM_API_KEY` | OpenRouter (or compatible) LLM API key |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins (include Vercel URL) |
+
+GitHub Secrets required for CI/CD (`deploy.yml`): `HF_TOKEN`, `HF_USERNAME`, `HF_SPACE_NAME`.

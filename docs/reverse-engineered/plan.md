@@ -1,7 +1,7 @@
 # Physical AI & Humanoid Robotics Textbook — Implementation Plan
 
-**Version**: 3.0 (Reverse Engineered)
-**Date**: 2026-06-19
+**Version**: 3.1 (Reverse Engineered)
+**Date**: 2026-06-21
 
 ## Architecture Overview
 
@@ -328,8 +328,7 @@ ingestion/
 **Timeline**: 1-2 weeks
 
 1. Add `.env.example` with documented placeholders
-2. Remove dead code (`initialize_agent`)
-3. Add `__init__.py` to `models/` and `utils/`
+2. Add `__init__.py` to `models/` and `utils/`
 4. Add structured JSON logging
 5. Add request ID tracing middleware
 6. Rotate/remove committed API keys from git history

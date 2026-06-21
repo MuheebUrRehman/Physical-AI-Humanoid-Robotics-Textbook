@@ -36,6 +36,8 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
             return
 
         try:
+            sent_any_event = False
+
             # 1. Load recent conversation history (last 10 items)
             previous_items = await self.store.load_thread_items(
                 thread.id, after=None, limit=10, order="desc", context=context
@@ -48,7 +50,15 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
                 for c in content_items:
                     if hasattr(c, 'text') and c.text:
                         texts.append(c.text)
-                return "\n".join(texts) if texts else str(content_items)
+                    elif hasattr(c, 'alt_text') and c.alt_text:
+                        texts.append(f"[Image: {c.alt_text}]")
+                    elif hasattr(c, 'file_name') and c.file_name:
+                        texts.append(f"[File: {c.file_name}]")
+                    elif hasattr(c, 'type') and c.type == 'image':
+                        texts.append("[Image]")
+                    elif hasattr(c, 'type') and c.type == 'file':
+                        texts.append("[File]")
+                return "\n".join(texts) if texts else ""
 
             role_map = {
                 "user_message": "User",
@@ -121,32 +131,28 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
                 store=self.store,
                 request_context=context,
             )
-            sent_any_event = False
             async for event in stream_agent_response(agent_ctx, result):
                 yield event
                 sent_any_event = True
 
         except asyncio.CancelledError:
             raise
+        except GeneratorExit:
+            raise
         except InputGuardrailTripwireTriggered:
             logger.info("Guardrail triggered (InputGuardrailTripwireTriggered) in ChatKit respond")
-            if not sent_any_event:
-                yield ErrorEvent(
-                    code="custom",
-                    message="I can only answer questions related to Physical AI and Robotics.",
-                    allow_retry=False,
-                )
+            yield ErrorEvent(
+                code="custom",
+                message="I can only answer questions related to Physical AI and Robotics.",
+                allow_retry=False,
+            )
         except Exception as e:
-            logger.error(f"Error in ChatKit respond loop: {str(e)}")
-            # Only yield ErrorEvent if no response tokens were streamed yet.
-            # If events were already sent, the client has partial output and
-            # an ErrorEvent would corrupt the conversation state.
-            if not sent_any_event:
-                yield ErrorEvent(
-                    code="custom",
-                    message=f"Sorry, something went wrong: {str(e)[:200]}",
-                    allow_retry=True,
-                )
+            logger.error(f"Error in ChatKit respond loop: {e}", exc_info=True)
+            yield ErrorEvent(
+                code="partial_error" if sent_any_event else "custom",
+                message=f"Sorry, something went wrong: {str(e)[:200]}" if not sent_any_event else "The response was incomplete due to an error.",
+                allow_retry=True,
+            )
 
 async def initialize_chatkit_server(db_path: str = "chatkit.db") -> CustomChatKitServer:
     """

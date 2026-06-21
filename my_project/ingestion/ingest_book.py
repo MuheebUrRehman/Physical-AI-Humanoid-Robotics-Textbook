@@ -12,30 +12,16 @@ import logging
 from typing import List, Dict, Tuple, Optional
 import uuid
 from datetime import datetime, timezone
-import asyncio
 import time
 from dotenv import load_dotenv
 
-# Import Cohere - will be available after installing dependencies
-try:
-    import cohere
-except ImportError:
-    cohere = None
-    print("Warning: Cohere library not found. Please install it using 'pip install cohere'")
-
-# Import Qdrant - will be available after installing dependencies
-try:
-    from qdrant_client import QdrantClient
-    from qdrant_client.http import models
-except ImportError:
-    QdrantClient = None
-    models = None
-    print("Warning: Qdrant client library not found. Please install it using 'pip install qdrant-client'")
+import cohere
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
 
 
 # Anchor docs directory relative to this script's location — works from any CWD
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_DEFAULT_DOCS_DIR = os.path.normpath(os.path.join(_SCRIPT_DIR, '..', 'frontend', 'docs'))
+_DEFAULT_DOCS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'docs'))
 
 # Load configuration from .env file
 load_dotenv()
@@ -97,9 +83,6 @@ def setup_logging():
 
 def setup_cohere_client(api_key: str):
     """Set up Cohere API client with error handling."""
-    if not cohere:
-        raise ImportError("Cohere library is not installed. Please run 'pip install cohere'")
-
     if not api_key:
         raise ValueError("Cohere API key is required")
 
@@ -115,9 +98,6 @@ def setup_cohere_client(api_key: str):
 
 def setup_qdrant_client(host: str, port: int, api_key: Optional[str] = None):
     """Set up Qdrant client with proper connection parameters."""
-    if not QdrantClient:
-        raise ImportError("Qdrant client library is not installed. Please run 'pip install qdrant-client'")
-
     try:
         # Remove protocol if present (Qdrant client doesn't expect protocol in host parameter)
         import re
@@ -222,7 +202,7 @@ def handle_api_call_with_retry(api_call_func, *args, max_retries: int = 3, **kwa
             last_exception = e
             if attempt == max_retries - 1:  # Last attempt
                 logging.error(f"API call failed after {max_retries} attempts: {str(e)}")
-                raise e
+                raise
 
             # Calculate delay with exponential backoff
             delay = 1.0 * (2 ** attempt)  # 1s, 2s, 4s, etc.
@@ -294,7 +274,7 @@ def extract_module_and_chapter_from_path(file_path: str) -> Tuple[str, str]:
             return 'root', chapter
         else:
             # If path is just docs/something.mdx
-            file_name = path_parts[docs_index + 1]
+            file_name = path_parts[-1]
             chapter = os.path.splitext(file_name)[0]
             return 'root', chapter
     except ValueError:
@@ -308,18 +288,14 @@ def extract_module_and_chapter_from_path(file_path: str) -> Tuple[str, str]:
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             return 'unknown', base_name
 
-    # Default fallback
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    return 'unknown', base_name
-
-
 def validate_file_path(file_path: str, base_dir: str = _DEFAULT_DOCS_DIR) -> bool:
     """
     Validate file path to prevent directory traversal vulnerabilities.
     """
     try:
-        # Normalize the file path
-        normalized_path = os.path.normpath(file_path)
+        from urllib.parse import unquote
+        decoded_path = unquote(file_path)
+        normalized_path = os.path.normpath(decoded_path)
         base_path = os.path.normpath(base_dir)
 
         # Check if the normalized path starts with the base directory
@@ -394,7 +370,7 @@ def read_mdx_file(file_path: str, max_file_size_mb: int = 50) -> Optional[str]:
                 content = file.read()
                 logger.warning(f"Successfully read {len(content)} characters using latin-1 encoding")
                 return content
-        except:
+        except Exception:
             logger.error(f"Unable to decode file with any encoding: {file_path}")
             return None
     except MemoryError:
@@ -409,10 +385,6 @@ def read_mdx_file(file_path: str, max_file_size_mb: int = 50) -> Optional[str]:
 
 
 def process_large_mdx_file(file_path: str, chunk_size: int = 8192) -> Optional[str]:
-    """
-    Alternative method to process large MDX files by reading in chunks [T043].
-    This is an alternative approach for files that are too large to load entirely into memory.
-    """
     logger = logging.getLogger(__name__)
     logger.info(f"Processing large MDX file in chunks: {file_path}")
 
@@ -428,6 +400,15 @@ def process_large_mdx_file(file_path: str, chunk_size: int = 8192) -> Optional[s
         content = "".join(content_parts)
         logger.info(f"Successfully processed large file {file_path} in chunks, total size: {len(content)} characters")
         return content
+    except UnicodeDecodeError:
+        logger.warning(f"UTF-8 decoding failed for {file_path}, trying latin-1")
+        try:
+            with open(file_path, 'r', encoding='latin-1') as file:
+                content = file.read()
+                return content
+        except Exception:
+            logger.error(f"Unable to decode file with any encoding: {file_path}")
+            return None
     except Exception as e:
         logger.error(f"Error processing large file {file_path} in chunks: {str(e)}")
         return None
@@ -491,13 +472,15 @@ def convert_mdx_to_text(mdx_content: str) -> str:
     return text_content
 
 
-def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50, encoding_name: str = "cl100k_base") -> List[str]:
     """
     Token-aware chunking using tiktoken with paragraph-first, sentence-second boundaries.
 
     Splits text into chunks of approximately `chunk_size` tokens (not characters),
     preferring to break at paragraph boundaries. Falls back to sentence boundaries
     within oversized paragraphs. Overlap ensures context continuity.
+
+    encoding_name: tiktoken encoding (default cl100k_base, the GPT-4 encoding).
     """
     import tiktoken
 
@@ -511,7 +494,7 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]
         overlap = chunk_size // 2
         logger.warning(f"Overlap was >= chunk_size, reducing to {overlap}")
 
-    enc = tiktoken.get_encoding("cl100k_base")
+    enc = tiktoken.get_encoding(encoding_name)
 
     def count_tokens(t: str) -> int:
         return len(enc.encode(t))
@@ -800,14 +783,7 @@ def batch_store_vectors_in_qdrant(qdrant_client, vector_records: List[VectorReco
             logger.debug(f"Processing batch {i//batch_size + 1} with {len(batch)} vectors")
 
             # Convert VectorRecords to Qdrant points for this batch
-            points = []
-            for record in batch:
-                point = {
-                    "id": record.id,
-                    "vector": record.vector,
-                    "payload": record.to_payload()
-                }
-                points.append(point)
+            points = [record.to_qdrant_point() for record in batch]
 
             # Store the batch in Qdrant
             result = safe_store_vectors_in_qdrant(qdrant_client, points, collection_name)
@@ -917,21 +893,18 @@ def scan_mdx_files(docs_directory: str) -> List[str]:
     return mdx_files
 
 
-def validate_input_parameters(args):
+def validate_input_parameters(args, skip_dir_check: bool = False):
     """
     Add input validation for all user-provided parameters [T042].
     """
     import re
-    import sys
     logger = logging.getLogger(__name__)
 
     # Validate docs directory
     if not args.docs_dir or not isinstance(args.docs_dir, str):
         raise ValueError("Docs directory must be a non-empty string")
 
-    # Skip directory existence check during unit tests
-    # We check if we're running in a test environment by checking if unittest is in sys.modules
-    if 'unittest' not in sys.modules:
+    if not skip_dir_check:
         if not os.path.exists(args.docs_dir):
             raise ValueError(f"Docs directory does not exist: {args.docs_dir}")
 
@@ -1004,13 +977,13 @@ def create_cli_parser():
         '--chunk-size',
         type=int,
         default=512,
-        help='Size of text chunks in characters (default: 512)'
+        help='Target chunk size in tokens (default: 512)'
     )
     parser.add_argument(
         '--chunk-overlap',
         type=int,
         default=50,
-        help='Overlap between chunks in characters (default: 50)'
+        help='Token overlap between chunks (default: 50)'
     )
     parser.add_argument(
         '--qdrant-host',
@@ -1029,6 +1002,12 @@ def create_cli_parser():
         type=str,
         default='embed-multilingual-v3.0',
         help='Cohere model to use for embeddings (default: embed-multilingual-v3.0)'
+    )
+    parser.add_argument(
+        '--vector-size',
+        type=int,
+        default=1024,
+        help='Dimension of the embedding vectors (default: 1024, Cohere embed-multilingual-v3.0)'
     )
     parser.add_argument(
         '--collection-name',
@@ -1081,9 +1060,9 @@ def main():
         config['cohere_model'] = args.cohere_model
 
     # Set up logging based on verbosity
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
     logger = setup_logging()
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
 
     print("Book Vector Ingestion System - Full Implementation")
     print(f"Configuration loaded:")
@@ -1135,7 +1114,7 @@ def main():
 
     # Step 4: Create Qdrant collection
     try:
-        create_qdrant_collection(qdrant_client, args.collection_name)
+        create_qdrant_collection(qdrant_client, args.collection_name, vector_size=args.vector_size)
         logger.info("Qdrant collection verified/created")
     except Exception as e:
         logger.error(f"Failed to create Qdrant collection: {str(e)}")

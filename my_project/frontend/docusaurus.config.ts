@@ -78,27 +78,19 @@ const config: Config = {
         },
       };
     },
-    // Plugin to add webpack dev server proxy for API calls
+    // Plugin to add dev server proxy for API calls (Docusaurus native proxy format)
     function () {
       return {
-        name: 'webpack-dev-server-proxy',
-        configureWebpack(config, isServer): any {
-          // Return additional webpack configuration for dev server proxy
-          if (!isServer) {
-            return {
-              devServer: {
-                proxy: [
-                  {
-                    context: ['/api/chatkit', '/chatkit'],
-                    target: process.env.API_BASE_URL || 'http://localhost:8000', // Backend server URL
-                    changeOrigin: true,
-                    logLevel: 'debug',
-                  },
-                ],
-              },
-            };
-          }
-          return {};
+        name: 'dev-server-proxy',
+        proxy: {
+          '/api/chatkit': {
+            target: process.env.API_BASE_URL || 'http://localhost:8000',
+            changeOrigin: true,
+          },
+          '/chatkit': {
+            target: process.env.API_BASE_URL || 'http://localhost:8000',
+            changeOrigin: true,
+          },
         },
       };
     },

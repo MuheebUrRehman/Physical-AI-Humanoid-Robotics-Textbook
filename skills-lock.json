@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "chatkit-integration": {
+      "source": "anomalyco/skills",
+      "sourceType": "github",
+      "skillPath": "skills/chatkit-integration/SKILL.md",
+      "computedHash": "pending"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -12,6 +18,12 @@
       "sourceType": "github",
       "skillPath": "skills/openai-agents-sdk/SKILL.md",
       "computedHash": "7e903383b09b492f3a7237f41718e7a0d34ae36a09d3182b31a15c175bc3f5e8"
+    },
+    "ui-ux-futuristic-designer": {
+      "source": "anomalyco/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ui-ux-futuristic-designer/SKILL.md",
+      "computedHash": "pending"
     },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
