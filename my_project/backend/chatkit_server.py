@@ -139,11 +139,12 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
             raise
         except GeneratorExit:
             raise
-        except InputGuardrailTripwireTriggered:
-            logger.info("Guardrail triggered (InputGuardrailTripwireTriggered) in ChatKit respond")
+        except InputGuardrailTripwireTriggered as e:
+            msg = e.guardrail_result.output.output_info or "I can only answer questions related to Physical AI and Robotics."
+            logger.info(f"Guardrail triggered in ChatKit respond: {msg}")
             yield ErrorEvent(
                 code="custom",
-                message="I can only answer questions related to Physical AI and Robotics.",
+                message=msg,
                 allow_retry=False,
             )
         except Exception as e:

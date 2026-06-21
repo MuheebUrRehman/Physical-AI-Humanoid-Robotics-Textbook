@@ -45,7 +45,7 @@ product_selector = Agent(
     name="ProductSelector",
     instructions=load_prompt("product_selector.md"),
     model=get_model(),
-    model_settings=ModelSettings(max_tokens=64000),
+    model_settings=ModelSettings(max_tokens=16000),
     output_type=AgentOutputSchema(ProductsOutput, strict_json_schema=True),
 )
 

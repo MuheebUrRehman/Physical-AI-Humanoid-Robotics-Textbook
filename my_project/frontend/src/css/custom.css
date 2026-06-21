@@ -115,7 +115,7 @@ body {
 }
 
 .button--primary {
-  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  background: linear-gradient(135deg, var(--ifm-color-primary), #8B5CF6);
   border: none;
   border-radius: 12px;
   padding: 12px 32px;
@@ -131,7 +131,7 @@ body {
 .button--primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-  background: linear-gradient(135deg, #4F46E5, #7C3AED);
+  background: linear-gradient(135deg, var(--ifm-color-primary-dark), #7C3AED);
 }
 
 .button--primary:active {
@@ -172,6 +172,22 @@ body {
   .footer {
     padding: 2rem 1rem;
   }
+}
+
+:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -235,7 +251,32 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .navbar__link,
+  .card,
+  .button--primary,
+  .footer__link,
+  .menu__link {
+    transition: none;
+  }
+
+  .pagination-nav__link:hover {
+    border-color: var(--ifm-color-emphasis-300);
+  }
+}
+
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeInUp {
+    from { opacity: 1; transform: none; }
+    to { opacity: 1; transform: none; }
+  }
 }

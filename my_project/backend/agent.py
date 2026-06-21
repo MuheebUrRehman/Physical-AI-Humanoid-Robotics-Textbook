@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import List, Dict, Any
 
 from agents import Agent, Runner, AsyncOpenAI, input_guardrail, GuardrailFunctionOutput, RunContextWrapper
@@ -43,16 +44,18 @@ async def check_query_relevance(
     try:
         result = await Runner.run(judge_agent, f"Analyze: {input_text}")
         response = result.final_output.lower().strip()
-        is_relevant = 'yes' in response
+        has_yes = bool(re.search(r'\byes\b', response))
+        has_no = bool(re.search(r'\bno\b', response))
+        is_relevant = has_yes or not has_no
 
         return GuardrailFunctionOutput(
             tripwire_triggered=not is_relevant,
             output_info="Off-topic query detected" if not is_relevant else None
         )
     except Exception as e:
-        logger.error(f"Error in native guardrail: {e}")
+        logger.error(f"Error in native guardrail, falling back open: {e}")
         return GuardrailFunctionOutput(
-            output_info=None,
+            output_info="Unable to verify query relevance due to a system error. Allowing query through.",
             tripwire_triggered=False,
         )
 
@@ -96,7 +99,7 @@ book_knowledge_agent = Agent(
         openai_client=_build_openai_client(),
     ),
     model_settings=ModelSettings(
-        max_tokens=500,
+        max_tokens=1000,
         temperature=0.2
     ),
     input_guardrails=[check_query_relevance]

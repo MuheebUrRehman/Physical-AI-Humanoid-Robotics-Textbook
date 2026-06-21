@@ -9,7 +9,7 @@ class TestCreateQdrantCollection:
         mock_client.get_collections.return_value = MagicMock(collections=[])
         result = create_qdrant_collection(mock_client, "test_collection", vector_size=1024)
         assert result is True
-        mock_client.recreate_collection.assert_called_once()
+        mock_client.create_collection.assert_called_once()
 
     def test_collection_already_exists(self):
         mock_collection = MagicMock()
@@ -18,7 +18,7 @@ class TestCreateQdrantCollection:
         mock_client.get_collections.return_value = MagicMock(collections=[mock_collection])
         result = create_qdrant_collection(mock_client, "test_collection")
         assert result is True
-        mock_client.recreate_collection.assert_not_called()
+        mock_client.create_collection.assert_not_called()
 
 
 class TestBatchStoreVectors:

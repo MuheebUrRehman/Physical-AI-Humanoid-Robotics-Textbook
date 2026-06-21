@@ -8,7 +8,7 @@ from agents import Agent, Runner
 agent = Agent(
     name="Assistant",
     instructions="You are a helpful assistant.",
-    model="gpt-5.4",  # or "gpt-5.4-mini", "gpt-5.4-nano"
+    model="gpt-4o",  # or "gpt-4o-mini", "o4-mini"
 )
 
 # Synchronous execution
@@ -28,7 +28,7 @@ from agents import Agent, ModelSettings
 from agents.extensions.models.litellm_model import LitellmModel
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "azure")
-MODEL = os.getenv("MODEL", "gpt-5.4")
+MODEL = os.getenv("MODEL", "gpt-4o")
 
 def get_model() -> Union[str, LitellmModel]:
     """Get model based on provider."""
@@ -59,7 +59,7 @@ def dynamic_instructions(
 agent = Agent(
     name="DynamicBot",
     instructions=dynamic_instructions,  # Function instead of string
-    model="gpt-5.4",
+    model="gpt-4o",
 )
 
 result = await Runner.run(
@@ -82,7 +82,7 @@ def load_prompt(filename: str) -> str:
 agent = Agent(
     name="Planner",
     instructions=load_prompt("planner.md"),
-    model="gpt-5.4",
+    model="gpt-4o",
 )
 ```
 

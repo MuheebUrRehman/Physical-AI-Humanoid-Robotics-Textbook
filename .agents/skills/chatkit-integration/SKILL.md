@@ -1,6 +1,6 @@
 ---
 name: chatkit-integration
-description: Integrate OpenAI ChatKit framework with custom backend and AI agents. Handles ChatKit server implementation, React component integration, context injection, and conversation persistence.
+description: Integrates OpenAI ChatKit framework with custom backend and AI agents. This skill should be used when building conversational AI interfaces that need authentication, context injection, conversation persistence, or text selection &quot;Ask&quot; functionality, or when integrating ChatKit with any custom backend, frontend framework, or agent framework.
 ---
 
 # ChatKit Integration Skill
@@ -9,31 +9,20 @@ description: Integrate OpenAI ChatKit framework with custom backend and AI agent
 
 You are a full-stack engineer integrating OpenAI ChatKit framework with a custom backend and AI agents. You understand that ChatKit provides standardized conversation UI/UX, but requires custom integration to work with domain-specific agents and context.
 
-## Questions to Ask Before Implementing
+## Required Clarifications
 
-1. **Backend Integration**:
-   - What agent framework are you using? (OpenAI Agents SDK, LangChain, custom)
-   - What tools does your agent need? (RAG search, custom functions)
-   - What context does your agent need? (user profile, page context, conversation history)
-   - What database are you using? (PostgreSQL, MongoDB, Redis)
+1. **Backend Framework** — What framework is the backend using? (FastAPI, Flask, Express, Next.js API routes, etc.)
+2. **Agent Framework** — What agent SDK is being used? (OpenAI Agents SDK, LangChain, custom, or none)
+3. **Frontend Framework** — What frontend framework renders the ChatKit widget? (React, Next.js, Docusaurus, Vue, etc.)
+4. **Authentication** — How is user authentication handled? (OAuth, JWT, session cookies, Clerk, Auth0, custom)
 
-2. **Frontend Integration**:
-   - What frontend framework? (React, Next.js, Docusaurus)
-   - How is authentication handled? (OAuth, JWT, session cookies)
-   - What context can you extract client-side? (page URL, title, DOM content)
-   - Do you need custom UI features? (text selection, personalization menu)
+## Optional Clarifications
 
-3. **Context Requirements**:
-   - What user information is available? (name, email, role, preferences)
-   - What page context is needed? (URL, title, headings, content)
-   - How should context be transmitted? (headers, metadata, query params)
-   - Should context be included in every request or only when needed?
+5. **Database / Persistence** — What database is used for conversation history? (only if persistence is needed)
+6. **Deployment Environment** — Where will this be deployed? (serverless, container, VPS — affects connection pooling strategy)
+7. **Custom UI Features** — Does the UI need text selection &quot;Ask&quot; feature, personalization menu, or other custom interactions?
 
-4. **Persistence Requirements**:
-   - Do conversations need to persist across sessions?
-   - What's the expected conversation volume? (affects database choice)
-   - Do you need multi-tenancy? (organization isolation)
-   - What's the retention policy? (how long to keep conversations)
+Note: Avoid asking too many questions in a single message. Start with Required questions, follow up with Optional as needed.
 
 ## Principles
 
@@ -103,7 +92,22 @@ You are a full-stack engineer integrating OpenAI ChatKit framework with a custom
    - Redirect to OAuth flow
    - **Rationale**: User ID required for conversation persistence
 
+## Before Implementation
+
+Gather context to ensure successful implementation:
+
+| Source | Gather |
+|--------|--------|
+| **Codebase** | Existing backend framework, frontend framework, auth system, database setup, agent SDK |
+| **Conversation** | User&#x27;s specific integration requirements, tech stack choices, auth method, persistence needs |
+| **Skill References** | ChatKit patterns from this skill — server integration, context injection, fetch interception |
+| **User Guidelines** | Project-specific conventions, deployment constraints, security requirements |
+
+Ensure all required context is gathered before implementing. Only ask user for THEIR specific requirements.
+
 ## Implementation Patterns
+
+&gt; **Note**: The code examples below are conceptual patterns showing ChatKit integration architecture. Adapt types, imports, and framework-specific details to your project&#x27;s tech stack. The patterns demonstrate the approach, not a copy-paste solution.
 
 ### Pattern 1: ChatKit Server with Custom Agent
 
@@ -150,16 +154,16 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
         # Create agent with tools
         agent = Agent(
             name="Assistant",
-            tools=[your_search_tool],
+            tools=[agent_tools],  # Replace with your agent&#x27;s tools (e.g., RAG search, API calls, custom functions)
             instructions=f"{history_str}\n{user_context_str}{page_context_str}\n{system_prompt}",
         )
         
         # Convert message to agent input
-        converter = YourThreadItemConverter()
+        converter = ThreadItemConverter()  # Implement your own converter matching your agent&#x27;s input format
         agent_input = await converter.to_agent_input(input_user_message)
         
         # Run agent with streaming
-        agent_context = YourAgentContext(
+        agent_context = AgentContext(  # Implement your own context class with thread, store, request_context
             thread=thread,
             store=self.store,
             request_context=context,
@@ -171,7 +175,6 @@ class CustomChatKitServer(ChatKitServer[RequestContext]):
             yield event
 ```
 
-**Evidence**: `rag-agent/chatkit_server.py:100-270`
 
 ### Pattern 2: Custom Fetch Interceptor
 
@@ -186,17 +189,18 @@ const { control, sendUserMessage } = useChatKit({
     
     // Custom fetch to inject auth and context
     fetch: async (url: string, options: RequestInit) => {
-      // Check authentication
+      // Check authentication (replace with your auth implementation)
       if (!isLoggedIn) {
         throw new Error('User must be logged in');
       }
       
-      const userId = session.user.id;
+      const user = getUser(); // Get current user from your auth system
+      const userId = user.id;
       const pageContext = getPageContext();
       const userInfo = {
         id: userId,
-        name: session.user.name,
-        email: session.user.email,
+        name: user.name,
+        email: user.email,
         // ... other user fields
       };
       
@@ -236,7 +240,6 @@ const { control, sendUserMessage } = useChatKit({
 });
 ```
 
-**Evidence**: `robolearn-interface/src/components/ChatKitWidget/index.tsx:197-240`
 
 ### Pattern 3: Script Loading Detection
 
@@ -284,7 +287,6 @@ useEffect(() => {
 )}
 ```
 
-**Evidence**: `robolearn-interface/src/components/ChatKitWidget/index.tsx:67-113`
 
 ### Pattern 4: Page Context Extraction
 
@@ -322,7 +324,6 @@ const getPageContext = useCallback(() => {
 }, []);
 ```
 
-**Evidence**: `robolearn-interface/src/components/ChatKitWidget/index.tsx:121-151`
 
 ### Pattern 5: Text Selection "Ask" Feature
 
@@ -385,7 +386,6 @@ const handleAskSelectedText = useCallback(async () => {
 }, [selectedText, isOpen, sendUserMessage, getPageContext]);
 ```
 
-**Evidence**: `robolearn-interface/src/components/ChatKitWidget/index.tsx:153-187`, `273-331`
 
 ## When to Apply
 
@@ -419,10 +419,31 @@ const handleAskSelectedText = useCallback(async () => {
 5. **Database Not Warmed**: First request takes 7+ seconds
    - **Fix**: Pre-warm connection pool on startup
 
+## Output Specification
+
+When implementing ChatKit integration, deliver:
+
+1. **Backend Server** — ChatKit-compatible server with:
+   - Custom `respond()` method that handles agent execution
+   - Context injection (user info, page context) into agent prompts
+   - Graceful degradation when services are unavailable
+   - Connection pool warmup for production performance
+
+2. **Frontend Widget** — ChatKit component with:
+   - Custom fetch interceptor for auth headers and context injection
+   - Script loading detection
+   - Page context extraction
+   - Authentication gate
+
+3. **Configuration** — Environment variables for:
+   - Backend URL, domain key, auth tokens
+   - Database connection strings
+   - API keys for agent services
+
 ## References
 
-- **ChatKit Server Spec**: `specs/007-chatkit-server/spec.md`
-- **ChatKit UI Spec**: `specs/008-chatkit-ui-widget/spec.md`
-- **Implementation**: `rag-agent/chatkit_server.py`, `robolearn-interface/src/components/ChatKitWidget/`
+- **OpenAI ChatKit Documentation**: https://github.com/openai/chatkit
+- **ChatKit Server API**: Official ChatKit server package docs
+- **OpenAI Agents SDK**: https://openai.github.io/openai-agents-python/
 
 

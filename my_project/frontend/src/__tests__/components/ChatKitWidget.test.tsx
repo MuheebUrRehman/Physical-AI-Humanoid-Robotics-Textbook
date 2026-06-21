@@ -33,14 +33,14 @@ describe('ChatKitWidget', () => {
   it('renders the toggle button', async () => {
     const { default: ChatKitWidget } = await import('../../components/ChatKitWidget');
     const { container } = render(<ChatKitWidget />);
-    const toggle = container.querySelector('button[aria-label="Toggle Chat Assistant"]');
+    const toggle = container.querySelector('button[aria-label="Open Chat Assistant"]');
     expect(toggle).toBeInTheDocument();
   });
 
   it('opens chat window when toggle is clicked', async () => {
     const { default: ChatKitWidget } = await import('../../components/ChatKitWidget');
     const { container } = render(<ChatKitWidget />);
-    const toggle = container.querySelector('button[aria-label="Toggle Chat Assistant"]')!;
+    const toggle = container.querySelector('button[aria-label="Open Chat Assistant"]')!;
     fireEvent.click(toggle);
     const chatWindow = container.querySelector('[data-visible="true"]');
     expect(chatWindow).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('ChatKitWidget', () => {
   it('closes chat window on second toggle click', async () => {
     const { default: ChatKitWidget } = await import('../../components/ChatKitWidget');
     const { container } = render(<ChatKitWidget />);
-    const toggle = container.querySelector('button[aria-label="Toggle Chat Assistant"]')!;
+    const toggle = container.querySelector('button[aria-label="Open Chat Assistant"]')!;
     fireEvent.click(toggle);
     fireEvent.click(toggle);
     const chatWindow = container.querySelector('[data-visible="false"]');
@@ -66,7 +66,7 @@ describe('ChatKitWidget', () => {
   it('renders ChatKit component inside chat body', async () => {
     const { default: ChatKitWidget } = await import('../../components/ChatKitWidget');
     const { container } = render(<ChatKitWidget />);
-    const toggle = container.querySelector('button[aria-label="Toggle Chat Assistant"]')!;
+    const toggle = container.querySelector('button[aria-label="Open Chat Assistant"]')!;
     fireEvent.click(toggle);
     expect(screen.getByTestId('chatkit-chat')).toBeInTheDocument();
   });

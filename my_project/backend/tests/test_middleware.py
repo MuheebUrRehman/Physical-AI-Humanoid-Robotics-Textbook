@@ -84,6 +84,42 @@ async def test_rate_limiter_allows_normal_requests():
 
 
 @pytest.mark.asyncio
+async def test_rate_limiter_blocks_at_limit():
+    from app import InMemoryRateLimiter
+
+    limiter = InMemoryRateLimiter(max_requests=5, window_seconds=60)
+    ip = "10.0.0.1"
+    for _ in range(5):
+        assert limiter.is_limited(ip) is False
+    assert limiter.is_limited(ip) is True
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_429_response():
+    from app import app
+
+    from httpx import AsyncClient, ASGITransport
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health")
+        assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_cleanup():
+    from app import InMemoryRateLimiter
+
+    limiter = InMemoryRateLimiter(max_requests=1, window_seconds=0)
+    ip1 = "10.0.0.1"
+    ip2 = "10.0.0.2"
+    limiter.is_limited(ip1)
+    limiter.is_limited(ip2)
+    assert len(limiter.requests) == 2
+    limiter.cleanup()
+    assert len(limiter.requests) == 0
+
+
+@pytest.mark.asyncio
 async def test_root_endpoint_returns_correct_structure():
     from app import app
 

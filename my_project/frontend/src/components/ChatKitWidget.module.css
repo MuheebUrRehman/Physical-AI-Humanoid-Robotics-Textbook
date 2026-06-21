@@ -45,9 +45,30 @@
   animation: fadeIn 0.2s ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .toggleButton {
+    transition: none;
+  }
+
+  .selectionButton {
+    animation: none;
+  }
+
+  .chatWindow {
+    transition: none;
+  }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeIn {
+    from { opacity: 1; transform: none; }
+    to { opacity: 1; transform: none; }
+  }
 }
 
 .chatWindow {

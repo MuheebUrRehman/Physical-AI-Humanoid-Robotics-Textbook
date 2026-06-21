@@ -17,10 +17,18 @@ const ChatKitWidget: React.FC = () => {
   // Initialize a persistent student ID for development
   const [studentId] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('chatkit_student_id');
-      if (saved) return saved;
-      const newId = 'student-' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('chatkit_student_id', newId);
+      try {
+        const saved = localStorage.getItem('chatkit_student_id');
+        if (saved) return saved;
+      } catch {
+        // localStorage unavailable (private browsing, storage full)
+      }
+      const newId = 'student-' + Math.random().toString(36).substring(2, 11);
+      try {
+        localStorage.setItem('chatkit_student_id', newId);
+      } catch {
+        // fall through — use in-memory only
+      }
       return newId;
     }
     return 'anonymous';
@@ -77,15 +85,7 @@ const ChatKitWidget: React.FC = () => {
     if (!selection) return;
     
     setIsOpen(true);
-    try {
-      (setComposerValue as any)({ text: `Tell me more about this: "${selection.text}"` });
-    } catch (e) {
-      try {
-        (setComposerValue as any)({ value: `Tell me more about this: "${selection.text}"` });
-      } catch (e2) {
-        console.warn('ChatKit setComposerValue failed', e, e2);
-      }
-    }
+    setComposerValue({ text: `Tell me more about this: "${selection.text}"` });
     setSelection(null);
   }, [selection, setComposerValue]);
 
@@ -94,8 +94,9 @@ const ChatKitWidget: React.FC = () => {
       {selection && (
         <button
           className={styles.selectionButton}
-          style={{ top: selection.y, left: selection.x }}
+          style={{ top: Math.min(selection.y, window.innerHeight - 60), left: Math.min(selection.x, window.innerWidth - 120) }}
           onClick={askAboutSelection}
+          aria-label="Ask AI about selected text"
         >
           ✨ Ask AI
         </button>
@@ -105,14 +106,14 @@ const ChatKitWidget: React.FC = () => {
         <button 
           className={styles.toggleButton}
           onClick={() => setIsOpen(!isOpen)}
-          aria-label="Toggle Chat Assistant"
+          aria-label={isOpen ? 'Close Chat Assistant' : 'Open Chat Assistant'}
         >
           {isOpen ? '×' : '💬'}
         </button>
         
         {/* Always keep ChatKit mounted to preserve conversation state.
             Use CSS visibility to show/hide instead of conditional rendering. */}
-        <div className={styles.chatWindow} data-visible={isOpen}>
+        <div className={styles.chatWindow} data-visible={isOpen} role="dialog" aria-modal="true" aria-label="Chat with Physical AI Assistant">
           <div className={styles.chatHeader}>
             <span>Physical AI Assistant</span>
           </div>

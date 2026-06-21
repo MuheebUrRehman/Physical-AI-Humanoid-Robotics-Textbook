@@ -1,7 +1,10 @@
 ---
 name: frontend-design
-description: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults.
-license: Complete terms in LICENSE.txt
+description: |
+  Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one.
+  This skill should be used when creating or redesigning user interfaces where templated/default aesthetics
+  must be avoided. Covers aesthetic direction, typography, color palette selection, layout structure,
+  motion design, and copywriting within a visual design context.
 ---
 
 # Frontend Design
@@ -11,6 +14,19 @@ Approach this as the design lead at a small studio known for giving every client
 ## Ground it in the subject
 
 If the brief does not pin down what the product or subject is, pin it yourself before designing: name one concrete subject, its audience, and the page's single job, and state your choice. If there's any information in your memory about the human's preferences, context about what they're building, or designs you've made before – use that as a hint. The subject's own world, its materials, instruments, artifacts, and vernacular, is where distinctive choices come from. Build with the brief's real content and subject matter throughout.
+
+## Before Implementation
+
+Gather context to ensure successful design:
+
+| Source | Gather |
+|--------|--------|
+| **Codebase** | Existing brand assets, design tokens, component library, CSS framework |
+| **Conversation** | User's design brief, subject matter, audience, page goals, preferences, constraints |
+| **Skill References** | Design principles from this skill — typography, color, layout, motion guidance |
+| **User Guidelines** | Brand guidelines, accessibility requirements, browser support targets |
+
+Ensure all required context is gathered before designing. Only ask user for their specific brief and preferences.
 
 ## Design principles
 
@@ -38,6 +54,12 @@ When writing the code, be careful of structuring your CSS selector specificities
 
 Try to do a lot of this planning and iteration in your thinking, and only show ideas to the user when you have higher confidence it'll delight them.
 
+## When NOT to Use This Skill
+
+- **Utility/internal tools where visual differentiation does not drive adoption** — the effort of distinctive design is better invested elsewhere
+- **Strict brand-following projects** — if the brief requires matching an existing brand system exactly, use the brand's design system instead
+- **No design budget** — this skill assumes time for iteration, critique, and refinement
+
 ## Restraint and self-critique
 
 Spend your boldness in one place. Let the signature element be the one memorable thing, keep everything around it quiet and disciplined, and cut any decoration that does not serve the brief. Not taking a risk can be a risk itself! Build to a quality floor without announcing it: responsive down to mobile, visible keyboard focus, reduced motion respected. Critique your own work as you build, taking screenshots if your environment supports it – a picture is worth 1000 tokens. Consider Chanel's advice: before leaving the house, take a look in the mirror and remove one accessory. Human creators have memory and always try to do something new, so if you have a space to quickly jot down notes about what you've tried, it can help you in future passes.
@@ -53,3 +75,9 @@ Use active voice as default. A control should say exactly what happens when it's
 Treat failure and emptiness as moments for direction, not mood. Explain what went wrong and how to fix it, in the interface's voice rather than a person's. Errors don't apologize, and they are never vague about what happened. An empty screen is an invitation to act.
 
 Keep the register conversational and tuned: plain verbs, sentence case, no filler, with tone matched to the brand and the audience. Let each element do exactly one job. A label labels, an example demonstrates, and nothing quietly does double duty.
+
+## References
+
+- **Material Design 3**: https://m3.material.io/ — Systematic design principles and tokens
+- **Apple Human Interface Guidelines**: https://developer.apple.com/design/human-interface-guidelines/ — Platform-specific design guidance
+- **WCAG 2.2**: https://www.w3.org/TR/WCAG22/ — Accessibility standards

@@ -11,6 +11,7 @@ from chatkit.types import ThreadMetadata, ThreadItem, Page, Attachment, ActiveSt
 # ThreadItem is a discriminated union (Annotated type), not a direct Pydantic model.
 # Use TypeAdapter for deserialization.
 thread_item_adapter = TypeAdapter(ThreadItem)
+attachment_adapter = TypeAdapter(Attachment)
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class SQLiteStore(Store[Any]):
         created_at = datetime.now(timezone.utc).timestamp()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "INSERT OR REPLACE INTO threads (id, metadata, created_at) VALUES (?, ?, ?)",
+                "INSERT INTO threads (id, metadata, created_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata, created_at = COALESCE((SELECT created_at FROM threads WHERE id = excluded.id), excluded.created_at)",
                 (thread.id, thread_json, created_at)
             )
             await db.commit()
@@ -157,7 +158,7 @@ class SQLiteStore(Store[Any]):
                 row = await cursor.fetchone()
                 if not row:
                     raise NotFoundError(f"Attachment {attachment_id} not found")
-                return Attachment.model_validate_json(row[0])
+                return attachment_adapter.validate_json(row[0])
 
     async def delete_attachment(self, attachment_id: str, context: Any) -> None:
         await self._ensure_initialized()

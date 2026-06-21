@@ -1,11 +1,28 @@
 ---
 name: ui-ux-futuristic-designer
-description: Design futuristic 2026-style UI with 3D depth, glassmorphism, soft shadows, and modern aesthetics. Use when users request UI/UX design guidance, dashboard layouts, SaaS interfaces, design systems, color palettes, typography recommendations, or need help creating modern, polished visual designs. Provides step-by-step design guidance without implementation code.
+description: |
+  Designs futuristic UI with 3D depth, glassmorphism, soft shadows, and modern aesthetics.
+  This skill should be used when users request UI/UX design guidance, dashboard layouts, SaaS
+  interfaces, design systems, color palettes, typography recommendations, or need help creating
+  modern, polished visual designs. Provides step-by-step design guidance without implementation code.
 ---
 
 # UI/UX Futuristic Designer (2026 Style)
 
 Design cutting-edge user interfaces optimized for modern SaaS dashboards with futuristic aesthetics.
+
+## Before Implementation
+
+Gather context to ensure successful design:
+
+| Source | Gather |
+|--------|--------|
+| **Codebase** | Existing design tokens, component library, brand assets, CSS framework |
+| **Conversation** | User's product type, target audience, design requirements, device targets, brand personality |
+| **Skill References** | Design patterns from `references/design-patterns.md`, color systems from `references/color-systems.md` |
+| **User Guidelines** | Brand guidelines, accessibility requirements, browser support targets |
+
+Ensure all required context is gathered before designing. Only ask user for THEIR specific requirements.
 
 ## Core Design Philosophy
 
@@ -22,11 +39,19 @@ When a user requests UI/UX design, follow this structured approach:
 
 ### Step 1: Understand Context
 
-Ask clarifying questions (max 3-4):
-- What is the primary user action? (e.g., view data, create item, manage settings)
-- What is the user's emotional state? (e.g., focused work, quick glance, relaxed browsing)
-- What device/screen size? (desktop dashboard, mobile app, tablet)
-- What brand personality? (professional, playful, minimal, bold)
+Ask clarifying questions before designing:
+
+#### Required Clarifications
+1. **Product/Page Type** — What is being designed? (dashboard, landing page, SaaS interface, mobile app)
+2. **Primary User Action** — What is the main task users need to accomplish?
+3. **Target Audience** — Who is this for? (enterprise, consumers, developers, etc.)
+
+#### Optional Clarifications
+4. **Device Targets** — What screen sizes? (desktop, tablet, mobile — affects breakpoint planning)
+5. **Brand Personality** — What personality should the design convey? (professional, playful, minimal, bold)
+6. **Emotional State** — What is the user's expected state? (focused work, quick glance, relaxed browsing)
+
+Note: Avoid asking too many questions in a single message. Start with most important, follow up as needed.
 
 ### Step 2: Define Layout Structure
 
@@ -226,6 +251,16 @@ Desktop: 1024px+
   - Persistent side navigation
 ```
 
+## Output Specification
+
+Deliver design guidance with:
+
+1. **Layout Structure** — ASCII diagram showing spatial zones with exact spacing values
+2. **Visual Design System** — Color palette (named hex values), typography scale, glassmorphism specs, shadow system
+3. **Component Specifications** — For each component: purpose, dimensions, states, accessibility notes
+4. **Responsive Behavior** — Mobile, tablet, and desktop adaptations
+5. **Never code** — This skill provides design specifications only, never implementation code
+
 ## Output Format
 
 Always structure design guidance as:
@@ -309,6 +344,5 @@ For complex dashboard requests, see:
 
 ## Related Skills
 
-- [`theme-factory`](../theme-factory/SKILL.md) — Convert futuristic design language into production design tokens
-- [`motion-interaction-designer`](../motion-interaction-designer/SKILL.md) — Add motion design to the futuristic UI
-- [`webgl-performance-optimizer`](../webgl-performance-optimizer/SKILL.md) — Optimize the WebGL effects this design style often requires
+- `ui-ux-pro-max` in `.agents/skills/ui-ux-pro-max/` — Complementary UX guidelines and accessibility rules
+- `frontend-design` in `.agents/skills/frontend-design/` — Design philosophy and principles

@@ -23,7 +23,7 @@ agent = Agent(
     instructions="Select the 10 best products matching user request...",
     model=get_model(),
     model_settings=ModelSettings(
-        max_tokens=64000,
+        max_tokens=16000,
         # Reasoning effort: "none", "low", "medium", "high"
         reasoning=Reasoning(effort="low"),
     ),
@@ -70,7 +70,7 @@ from openai.types.shared.reasoning import Reasoning
 agent = Agent(
     name="Assistant",
     instructions="Be helpful.",
-    model="gpt-5.4",
+    model="gpt-4o",
     model_settings=ModelSettings(
         max_tokens=32000,
         temperature=0.7,

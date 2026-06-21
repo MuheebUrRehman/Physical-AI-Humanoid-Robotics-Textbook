@@ -40,7 +40,7 @@ async def test_respond_guardrail_tripwire():
 
     user_msg = MagicMock(spec=UserMessageItem)
     user_msg.content = [MagicMock(text="What is ROS 2?")]
-    type(user_msg.content[0]).text = "What is ROS 2?"
+    user_msg.content[0].text = "What is ROS 2?"
 
     context = RequestContext(user_id="student1")
 
@@ -70,7 +70,7 @@ async def test_respond_guardrail_tripwire():
 
         assert len(events) == 1
         assert events[0].code == "custom"
-        assert "Physical AI and Robotics" in events[0].message
+        assert events[0].message == "Off-topic query detected"
         assert events[0].allow_retry is False
 
 
@@ -95,7 +95,7 @@ async def test_respond_generic_error_yields_error_event():
 
     user_msg = MagicMock(spec=UserMessageItem)
     user_msg.content = [MagicMock(text="Some query")]
-    type(user_msg.content[0]).text = "Some query"
+    user_msg.content[0].text = "Some query"
 
     context = RequestContext(user_id="student1")
 
@@ -133,12 +133,12 @@ async def test_respond_includes_history():
     prev_user = MagicMock()
     prev_user.type = "user_message"
     prev_user.content = [MagicMock(text="What is kinematics?")]
-    type(prev_user.content[0]).text = "What is kinematics?"
+    prev_user.content[0].text = "What is kinematics?"
 
     prev_assistant = MagicMock()
     prev_assistant.type = "assistant_message"
     prev_assistant.content = [MagicMock(text="Kinematics is the study of motion.")]
-    type(prev_assistant.content[0]).text = "Kinematics is the study of motion."
+    prev_assistant.content[0].text = "Kinematics is the study of motion."
 
     store.load_thread_items = AsyncMock(return_value=Page(
         data=[prev_user, prev_assistant], has_more=False
@@ -156,7 +156,7 @@ async def test_respond_includes_history():
 
     user_msg = MagicMock(spec=UserMessageItem)
     user_msg.content = [MagicMock(text="Tell me more")]
-    type(user_msg.content[0]).text = "Tell me more"
+    user_msg.content[0].text = "Tell me more"
 
     context = RequestContext(user_id="student1")
 
@@ -173,7 +173,10 @@ async def test_respond_includes_history():
             return MagicMock()
 
         with patch("chatkit_server.Agent", side_effect=capture_agent):
-            mock_stream.return_value.__aiter__.return_value = iter([])
+            async_gen_mock = AsyncMock()
+            async_gen_mock.__aiter__.return_value = async_gen_mock
+            async_gen_mock.__anext__.side_effect = StopAsyncIteration()
+            mock_stream.return_value = async_gen_mock
 
             events = []
             async for event in server.respond(thread, user_msg, context):
@@ -211,7 +214,7 @@ async def test_respond_includes_page_context():
 
     user_msg = MagicMock(spec=UserMessageItem)
     user_msg.content = [MagicMock(text="Explain this")]
-    type(user_msg.content[0]).text = "Explain this"
+    user_msg.content[0].text = "Explain this"
 
     page_ctx = PageContext(
         url="/docs/module1/chapter1",
@@ -233,7 +236,10 @@ async def test_respond_includes_page_context():
             return MagicMock()
 
         with patch("chatkit_server.Agent", side_effect=capture_agent):
-            mock_stream.return_value.__aiter__.return_value = iter([])
+            async_gen_mock = AsyncMock()
+            async_gen_mock.__aiter__.return_value = async_gen_mock
+            async_gen_mock.__anext__.side_effect = StopAsyncIteration()
+            mock_stream.return_value = async_gen_mock
 
             events = []
             async for event in server.respond(thread, user_msg, context):

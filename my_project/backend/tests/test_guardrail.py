@@ -37,6 +37,23 @@ async def test_guardrail_blocks_off_topic_query():
 
 
 @pytest.mark.asyncio
+async def test_guardrail_passes_verbose_yes():
+    from agent import check_query_relevance
+
+    mock_result = MagicMock()
+    mock_result.final_output = "Yes, this query appears to be about robotics."
+
+    with patch("agent.Runner.run", new_callable=AsyncMock) as mock_runner:
+        mock_runner.return_value = mock_result
+        result = await check_query_relevance.run(
+            MagicMock(), MagicMock(), "What are actuators?"
+        )
+
+    assert result.output.tripwire_triggered is False
+    assert result.output.output_info is None
+
+
+@pytest.mark.asyncio
 async def test_guardrail_fails_open_on_error():
     from agent import check_query_relevance
 
@@ -47,3 +64,4 @@ async def test_guardrail_fails_open_on_error():
         )
 
     assert result.output.tripwire_triggered is False
+    assert "Unable to verify" in str(result.output.output_info)

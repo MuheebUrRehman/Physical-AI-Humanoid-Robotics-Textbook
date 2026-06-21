@@ -1,7 +1,14 @@
 ---
 name: openai-agents-sdk
 argument-hint: "[question or feature]"
-description: OpenAI Agents SDK (Python) development. Use when building AI agents, multi-agent handoffs, function tools, guardrails, sessions, streaming, or tracing with the `openai-agents` / `agents` Python package — including Azure OpenAI via LiteLLM. Triggers on imports from `agents`, uses of `Runner.run_sync`/`Runner.run_streamed`, `@function_tool`, `AgentOutputSchema`, `SQLiteSession`, or questions about the openai-agents-python SDK.
+description: |
+  OpenAI Agents SDK (Python) development with support for agents, multi-agent handoffs, function tools,
+  guardrails, sessions, streaming, and tracing via the `openai-agents` Python package — including
+  Azure OpenAI through LiteLLM. This skill should be used when building AI agents with the
+  openai-agents SDK, implementing multi-agent handoffs, creating function tools, setting up guardrails,
+  managing conversation sessions, streaming agent responses, or integrating Azure OpenAI via LiteLLM.
+  Triggers on imports from `agents`, `Runner.run_sync`/`Runner.run_streamed`, `@function_tool`,
+  `AgentOutputSchema`, `SQLiteSession`, or questions about the openai-agents-python SDK.
 ---
 
 # OpenAI Agents SDK (Python)
@@ -38,7 +45,7 @@ from agents import Agent, Runner
 agent = Agent(
     name="Assistant",
     instructions="You are a helpful assistant.",
-    model="gpt-5.4",  # or "gpt-5.4-mini", "gpt-5.4-nano"
+    model="gpt-4o",  # or "gpt-4o-mini", "o4-mini"
 )
 
 # Synchronous
@@ -68,16 +75,44 @@ result = await Runner.run(agent, "Tell me a joke")
 | Subagents | Spawn specialized subordinate agents (Python + TS) |
 | Observability | Built-in execution graph recording |
 
+## Required Clarifications
+
+1. **Agent Purpose** — What is the agent supposed to do? (Q&A, tool-use, multi-step workflow, classification)
+2. **LLM Provider** — Are you using OpenAI directly or Azure OpenAI via LiteLLM? (affects env vars and setup)
+3. **Features Needed** — Which SDK features are required? (basic agent, function tools, handoffs, guardrails, streaming, sessions, structured output)
+
+## Optional Clarifications
+
+4. **Deployment Environment** — Where will this agent run? (serverless, container, long-running service — affects session storage choice)
+5. **Observability Requirements** — Do you need tracing/monitoring? (for debugging or production monitoring)
+6. **Existing Infrastructure** — Any existing agent framework or tooling this needs to integrate with?
+
+Note: Avoid asking too many questions in a single message. Start with Required, follow up with Optional as needed.
+
+## Before Implementation
+
+Gather context to ensure successful implementation:
+
+| Source | Gather |
+|--------|--------|
+| **Codebase** | Existing project structure, dependencies, Python version, async framework in use |
+| **Conversation** | User's specific agent requirements, model preferences, deployment constraints |
+| **Skill References** | SDK patterns from `references/` — agent creation, tools, guardrails, sessions, handoffs, streaming |
+| **User Guidelines** | Project-specific conventions, API key management, security requirements |
+
+Ensure all required context is gathered before implementing. Only ask user for THEIR specific requirements.
+
 ## Preferred: Live Docs via MCP
 
 Model names and API details change frequently. When available, consult the **OpenAI Developer Docs MCP server** (`openaiDeveloperDocs`) before relying on the static references below.
 
-Setup (Codex CLI):
+Setup (your CLI tool):
 ```bash
-codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
+# Example MCP CLI: your-cli-tool mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
+# Or configure in your editor's MCP settings (see alternative config below)
 ```
 
-Or config (`~/.codex/config.toml`, VS Code `.vscode/mcp.json`, Cursor `~/.cursor/mcp.json`):
+Or config (VS Code `.vscode/mcp.json`, Cursor `~/.cursor/mcp.json`):
 ```toml
 [mcp_servers.openaiDeveloperDocs]
 url = "https://developers.openai.com/mcp"
@@ -110,3 +145,14 @@ Offline/quick-lookup snippets. Verify model names and API signatures against the
 - **Docs MCP setup:** https://developers.openai.com/learn/docs-mcp
 - **Docs index (llms.txt):** https://developers.openai.com/api/docs/llms.txt
 - **Current model IDs:** https://platform.openai.com/docs/models
+
+## Output Specification
+
+Deliver agents with:
+
+1. **Agent Definition** — Properly configured Agent instance with instructions, model, tools
+2. **Tool Implementations** — Function tools or hosted tools as required
+3. **Runner Integration** — Sync or async runner usage with proper error handling
+4. **Configuration** — Environment variables for LLM provider, model selection
+5. **Streaming** (if needed) — Streaming response handling with SSE or async generators
+6. **Session Management** (if needed) — Conversation history and persistence configuration

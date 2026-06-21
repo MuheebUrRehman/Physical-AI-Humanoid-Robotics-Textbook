@@ -32,6 +32,7 @@ def _get_qdrant_client():
 # In-memory embedding cache: {query: (embedding, timestamp)}
 _embed_cache: Dict[str, Tuple[List[float], float]] = {}
 _EMBED_CACHE_TTL: int = 300  # 5 minutes
+_EMBED_CACHE_MAX_SIZE: int = 1000  # max entries before LRU eviction
 
 
 async def embed_query(query: str, max_retries: int = 3) -> List[float]:
@@ -55,6 +56,9 @@ async def embed_query(query: str, max_retries: int = 3) -> List[float]:
                 input_type="search_query"
             )
             embedding = response.embeddings.float_[0]
+            if len(_embed_cache) >= _EMBED_CACHE_MAX_SIZE:
+                oldest = min(_embed_cache.keys(), key=lambda k: _embed_cache[k][1])
+                del _embed_cache[oldest]
             _embed_cache[query] = (embedding, time.time())
             return embedding
         except Exception as e:

@@ -8,7 +8,7 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-group dev
 
-COPY *.py ./
+COPY app.py agent.py config.py retrieval.py store.py chatkit_server.py ./
 COPY models/ ./models/
 COPY utils/ ./utils/
 

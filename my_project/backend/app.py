@@ -39,11 +39,12 @@ allowed_origins = [
 
 
 class InMemoryRateLimiter:
-    """Simple sliding-window rate limiter per IP."""
+    """Sliding-window rate limiter per IP with periodic cleanup."""
     def __init__(self, max_requests: int, window_seconds: int):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests: dict[str, list[float]] = defaultdict(list)
+        self._max_ips = 10000
 
     def is_limited(self, ip: str) -> bool:
         now = time.time()
@@ -53,6 +54,17 @@ class InMemoryRateLimiter:
             return True
         self.requests[ip].append(now)
         return False
+
+    def cleanup(self):
+        now = time.time()
+        window_start = now - self.window_seconds
+        stale = [ip for ip, times in self.requests.items() if not any(t > window_start for t in times)]
+        for ip in stale:
+            del self.requests[ip]
+        if len(self.requests) > self._max_ips:
+            sorted_ips = sorted(self.requests.keys(), key=lambda ip: len(self.requests[ip]))
+            for ip in sorted_ips[:len(self.requests) - self._max_ips]:
+                del self.requests[ip]
 
 
 rate_limiter = InMemoryRateLimiter(Config.RATE_LIMIT_REQUESTS, Config.RATE_LIMIT_WINDOW_SECONDS)
@@ -65,7 +77,23 @@ async def lifespan(app: FastAPI):
 
     app.state.chatkit_server = await initialize_chatkit_server()
     logger.info("ChatKitServer initialized successfully")
-    yield
+
+    cleanup_task = asyncio.create_task(_periodic_rate_limiter_cleanup())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+
+
+async def _periodic_rate_limiter_cleanup():
+    while True:
+        await asyncio.sleep(300)
+        rate_limiter.cleanup()
+        logger.debug("Rate limiter cleanup completed")
 
 
 app = FastAPI(
@@ -223,12 +251,11 @@ async def chat_endpoint(request: ChatRequest):
 async def chatkit_session(session_req: ChatKitSessionRequest, request: Request):
     try:
         cs = request.app.state.chatkit_server
+        client_secret = f"sk_{secrets.token_urlsafe(32)}"
         thread = await cs.store.create_thread(
             user_id=session_req.user_id,
-            metadata={"source": "textbook_web"}
+            metadata={"source": "textbook_web", "client_secret": client_secret}
         )
-
-        client_secret = f"sk_{secrets.token_urlsafe(32)}"
 
         return ChatKitSessionResponse(
             client_secret=client_secret,

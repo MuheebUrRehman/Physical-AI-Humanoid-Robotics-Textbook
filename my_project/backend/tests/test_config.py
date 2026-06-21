@@ -21,7 +21,11 @@ def test_config_cohere_model_in_env():
     assert os.getenv("COHERE_MODEL", "embed-multilingual-v3.0") == "embed-multilingual-v3.0"
 
 
-def test_config_validation_errors():
+def test_config_validation_fails_without_api_keys(monkeypatch):
     from config import Config
-
-    Config.validate()  # raises if validation fails
+    monkeypatch.setattr(Config, "COHERE_API_KEY", "")
+    monkeypatch.setattr(Config, "QDRANT_API_KEY", "")
+    monkeypatch.setattr(Config, "LLM_API_KEY", "")
+    monkeypatch.setattr(Config, "QDRANT_HOST", "")
+    with pytest.raises(ValueError):
+        Config.validate()

@@ -42,32 +42,32 @@ A comprehensive textbook on Physical AI and Humanoid Robotics with an integrated
 │   │   │   └── validation.py        # Input sanitization
 │   │   ├── scripts/
 │   │   │   └── read_db.py           # Debug utility
-│   │   └── tests/                    # pytest test suite (94 tests)
+│   │   └── tests/                    # pytest test suite (101 tests)
 │   │       ├── conftest.py           # Fixtures + dummy env vars
 │   │       ├── test_validation.py    # Input validation (17 tests)
 │   │       ├── test_models.py        # Pydantic model tests (16 tests)
 │   │       ├── test_agent_instructions.py  # Prompt construction (5 tests)
-│   │       ├── test_guardrail.py     # Guardrail logic (3 tests)
+│   │       ├── test_guardrail.py     # Guardrail logic (3 tests, fail-closed)
 │   │       ├── test_retrieval.py     # Retrieval pipeline (7 tests)
 │   │       ├── test_chat_endpoint.py # /chat API endpoint (5 tests)
 │   │       ├── test_chatkit_protocol.py  # ChatKit endpoints (5 tests)
 │   │       ├── test_chatkit_server.py    # CustomChatKitServer (5 tests)
-│   │       ├── test_config.py        # Config validation (4 tests)
-│   │       ├── test_middleware.py    # CORS, rate limit, health (7 tests)
-│   │       └── test_store.py         # SQLiteStore CRUD (9 tests)
+│   │       ├── test_config.py        # Config validation (5 tests)
+│   │       ├── test_middleware.py    # CORS, rate limiter, health (10 tests)
+│   │       └── test_store.py         # SQLiteStore CRUD (13 tests)
 │   ├── frontend/                     # Docusaurus textbook site + ChatKit widget
-│   │   ├── package.json             # npm dependencies (React 19, Docusaurus 3.10)
+│   │   ├── package.json             # npm dependencies (React 18.3, Docusaurus 3.9)
 │   │   ├── docusaurus.config.ts     # Site config, navbar, footer, plugins
 │   │   ├── sidebars.ts              # Documentation sidebar structure
 │   │   ├── vitest.config.ts         # Frontend test runner (vitest)
 │   │   ├── docs/                    # Textbook content (MDX), 6 chapters + glossary
 │   │   ├── src/                     # React source code
-│   │   │   ├── css/                 # Global styles (futuristic dark theme)
+│   │   │   ├── css/                 # Global styles (futuristic theme, WCAG 2.2 accessible)
 │   │   │   ├── pages/               # Homepage with hero + module cards
 │   │   │   ├── components/          # ChatKitWidget, HomepageFeatures
 │   │   │   ├── theme/               # Root.tsx global wrapper
 │   │   │   ├── utils/               # chatkit-fetch, context-extractor
-│   │   │   ├── __tests__/           # vitest test suite (31 tests)
+│   │   │   ├── __tests__/           # vitest test suite (31 tests, all passing)
 │   │   │   │   ├── utils/           # Utility function tests
 │   │   │   │   ├── components/      # Component smoke tests
 │   │   │   │   ├── pages/           # Page render tests
@@ -79,7 +79,17 @@ A comprehensive textbook on Physical AI and Humanoid Robotics with an integrated
 │   └── ingestion/                   # MDX → Cohere embeddings → Qdrant (uv project)
 │       ├── pyproject.toml            # Python dependencies (uv, includes tiktoken)
 │       ├── uv.lock                   # Locked dependency versions
-│       ├── ingest_book.py           # Full ingestion pipeline (token-aware chunking)
+│       ├── ingest_book.py           # Re-exports from 9 submodules (backward-compatible)
+│       ├── config.py                # Environment config + validation
+│       ├── models.py                # VectorRecord data model
+│       ├── mdx_utils.py             # MDX → plain text conversion
+│       ├── chunking.py              # Token-aware chunking with overlap
+│       ├── embedding.py             # Cohere embedding pipeline
+│       ├── qdrant_store.py          # Qdrant collection + vector operations
+│       ├── retry.py                 # Retry with exponential backoff
+│       ├── progress.py              # Progress tracker
+│       ├── pipeline.py              # process_file_for_vectorization orchestration
+│       ├── cli.py                   # Argument parsing + validation
 │       └── tests/                    # pytest test suite (79 tests)
 │           ├── conftest.py           # Shared fixtures
 │           ├── test_path_utils.py    # Path extraction & validation
@@ -146,11 +156,11 @@ uv sync
 uv run python ingest_book.py --docs-dir=../frontend/docs
 ```
 
-Additional options: `--chunk-size`, `--chunk-overlap`, `--vector-size`, `--collection-name`, `--batch-size`, `--cohere-model`, `--verbose`.
+Additional options: `--chunk-size`, `--chunk-overlap`, `--vector-size`, `--collection-name`, `--batch-size`, `--cohere-model`, `--verbose`, `--force-recreate` (drops and recreates existing Qdrant collection).
 
 ## Running Tests
 
-### Backend tests (pytest, 94 tests)
+### Backend tests (pytest, 101 tests)
 ```bash
 cd my_project/backend
 uv run pytest tests/ -v
